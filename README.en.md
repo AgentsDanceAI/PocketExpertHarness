@@ -4,6 +4,8 @@
 
 > **Try it online, no signup:** <https://agentsdance.ai>
 >
+> **On your phone:** get Pocket Expert AI for iPhone / iPad on the [App Store](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441). Android, the WeChat Mini Program and desktop apps are on the [download page](https://agentsdance.ai/download).
+>
 > [中文](README.md)
 
 ![Web chat](docs/screenshot.png)
@@ -93,7 +95,7 @@ The kernel has exactly three ports: call the model, run a tool, assemble the sys
 
 ## PocketExpert AI
 
-This repository is the kernel. The full product at [agentsdance.ai](https://agentsdance.ai) adds 250+ domain experts, multi-expert groups, an understanding layer and layered prompts, one-click slides / web pages / videos, and ready-to-use apps with no model setup.
+This repository is the kernel. The full product at [agentsdance.ai](https://agentsdance.ai) adds 250+ domain experts, multi-expert groups, an understanding layer and layered prompts, one-click slides / web pages / videos, and ready-to-use apps with no model setup: web, [iPhone / iPad](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441), Android, the WeChat Mini Program and desktop, all on one account.
 
 ## Contributing
 

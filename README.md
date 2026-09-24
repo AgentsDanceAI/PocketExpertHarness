@@ -4,6 +4,8 @@
 
 > **不想装? 直接在线体验 (免注册):** <https://agentsdance.ai>
 >
+> **手机上用:** iPhone / iPad 在 [App Store 下载口袋专家 AI](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441); Android、微信小程序和电脑客户端见 [下载页](https://agentsdance.ai/download)。
+>
 > [English](README.en.md)
 
 ![网页聊天界面](docs/screenshot.png)
@@ -182,7 +184,7 @@ asyncio.run(main())
 - 250+ 位行业专家, 以及多位专家一起干活的专家群
 - 先弄明白用户要什么的理解层、分层提示词
 - 一键出 PPT、网页、视频
-- 网页与多端 App, 开箱即用, 不用自己配模型和 Key
+- 开箱即用, 不用自己配模型和 Key: 网页、[iPhone / iPad App](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441)、Android、微信小程序和电脑客户端同一个账号
 
 ## 参与贡献
 
