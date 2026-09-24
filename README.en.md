@@ -186,3 +186,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). `kernel/` is exported from upstream; ple
 ## 📄 License
 
 [Apache License 2.0](LICENSE)
+
+## ⭐ Star History
+
+<a href="https://star-history.com/#AgentsDanceAI/PocketExpertHarness&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=AgentsDanceAI/PocketExpertHarness&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=AgentsDanceAI/PocketExpertHarness&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=AgentsDanceAI/PocketExpertHarness&type=Date" width="600" />
+  </picture>
+</a>
+
+If it helps, give it a ⭐ star.
