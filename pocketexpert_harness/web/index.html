@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PocketExpert Harness</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231E7CF2'/%3E%3Cpath d='M9 22V10h7.5a4.5 4.5 0 010 9H13' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side" id="side">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <div class="brand-name">PocketExpert Harness</div>
+        <div class="brand-sub" id="brandSub">口袋专家 AI 开源内核</div>
+      </div>
+    </div>
+    <button class="btn-new" id="newChat" type="button">＋ 新对话</button>
+    <nav class="sessions" id="sessions" aria-label="会话"></nav>
+    <div class="side-foot">
+      <button class="link" id="openMemory" type="button">长期记忆</button>
+      <button class="link" id="openInfo" type="button">工具与技能</button>
+      <a class="promo" href="https://agentsdance.ai" target="_blank" rel="noopener">
+        <strong>口袋专家 AI</strong>
+        <span>250+ 位行业专家 · 专家群协作 · 一键出 PPT / 网页 / 视频 · 手机 App</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <button class="icon-btn only-mobile" id="toggleSide" type="button" aria-label="会话列表">☰</button>
+      <h1 class="title" id="title">新对话</h1>
+      <div class="chips" id="chips"></div>
+    </header>
+
+    <section class="thread" id="thread" aria-live="polite">
+      <div class="empty" id="empty">
+        <h2>想让它帮你做什么?</h2>
+        <p>它会自己决定下一步: 搜索、读网页、跑代码、读写文件、调用你接入的 MCP 工具和技能, 直到把事做完。</p>
+        <div class="starters" id="starters">
+          <button type="button">查一下这周 AI 领域最重要的三条新闻, 每条附来源</button>
+          <button type="button">用 Python 算一下: 月供 8000 元、利率 3.1%、30 年, 贷款总额是多少</button>
+          <button type="button">记住: 我做跨境电商, 以后回答都给出可执行的清单</button>
+        </div>
+      </div>
+    </section>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <textarea id="input" rows="1" placeholder="输入问题" aria-label="消息"></textarea>
+      <div class="composer-actions">
+        <button class="btn-stop" id="stop" type="button" hidden>停止</button>
+        <button class="btn-send" id="send" type="submit">发送</button>
+      </div>
+      <p class="hint" id="hint">Enter 发送, Shift+Enter 换行。回答过程中还能继续输入, 它会在下一步之前读到你的补充。</p>
+    </form>
+  </main>
+</div>
+
+<dialog class="panel" id="memoryPanel">
+  <form method="dialog" class="panel-head"><h2>长期记忆</h2><button class="icon-btn" aria-label="关闭">✕</button></form>
+  <p class="panel-note">soul.md 是每一轮都会带上的身份与偏好; 下面的要点是对话中让它记住的, 可以随时删掉。</p>
+  <label class="field-label" for="soul">soul.md</label>
+  <textarea id="soul" rows="7" placeholder="例如: 我是做跨境电商的运营, 回答请给可执行的步骤, 金额用美元。"></textarea>
+  <div class="panel-row"><button class="btn-send" id="saveSoul" type="button">保存</button><span class="saved" id="soulSaved" hidden>已保存</span></div>
+  <h3>记住的要点</h3>
+  <ul class="mem-list" id="memItems"></ul>
+</dialog>
+
+<dialog class="panel" id="infoPanel">
+  <form method="dialog" class="panel-head"><h2>工具与技能</h2><button class="icon-btn" aria-label="关闭">✕</button></form>
+  <div id="infoBody"></div>
+</dialog>
+
+<dialog class="panel narrow" id="tokenPanel">
+  <form class="panel-body" id="tokenForm">
+    <h2>输入访问口令</h2>
+    <p class="panel-note">这个服务设置了访问口令 (PEH_ACCESS_TOKEN)。</p>
+    <input id="tokenInput" type="password" autocomplete="current-password" aria-label="访问口令">
+    <div class="panel-row"><button class="btn-send" type="submit">进入</button></div>
+  </form>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

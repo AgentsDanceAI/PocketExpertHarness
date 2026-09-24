@@ -1,0 +1,27 @@
+# 一条命令起来: cp .env.example .env (填 API Key) && docker compose up -d → http://127.0.0.1:8080
+# 自带 SearXNG 做联网搜索。默认只绑 127.0.0.1; 要给别的机器用, 先在 .env 设 PEH_ACCESS_TOKEN 再改端口绑定。
+services:
+  harness:
+    build: .
+    image: pocketexpert-harness:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
+      PEH_PYTHON: ${PEH_PYTHON:-on}          # 容器就是沙箱, 默认开代码执行
+      PEH_MCP_CONFIG: /data/config/mcp.json
+    ports:
+      - "127.0.0.1:${PEH_PORT:-8080}:8080"
+    volumes:
+      - ./data:/data                          # 会话、记忆 (soul.md)、工作区文件都在这里
+      - ./skills:/data/skills:ro              # 你自己的技能
+      - ./config:/data/config:ro              # MCP 服务配置: cp mcp.example.json config/mcp.json
+    depends_on: [searxng]
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-please-change-this-secret}
+    volumes:
+      - ./deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro

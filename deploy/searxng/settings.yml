@@ -1,0 +1,19 @@
+# PocketExpertHarness 自带的 SearXNG (元搜索, 免费、无需 API Key)。
+# 继承上游默认配置, 只改三处: 打开 JSON 接口 (harness 要 json)、关掉限流 (本机服务端调用)、中等安全搜索。
+use_default_settings: true
+
+server:
+  # 实际密钥由 docker compose 的 SEARXNG_SECRET 环境变量覆盖
+  secret_key: "change-me-in-docker-compose"
+  limiter: false
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json
+  safe_search: 1
+
+outgoing:
+  request_timeout: 4.0
+  max_request_timeout: 6.0
