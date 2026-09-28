@@ -4,8 +4,8 @@
 </h1>
 
 <p align="center">
-  <b>The open-source agent harness behind PocketExpert AI (口袋专家 AI)</b><br>
-  An assistant that decides its own next step — search, read pages, run code, read and write files, call MCP tools and skills — until the job is done.
+  <b>Your open-source personal AI agent that gets things done</b><br>
+  The same kernel that runs PocketExpert AI (口袋专家 AI) in production, self-hosted in one command on your own computer or server: it searches, reads pages, runs code, reads and writes files, sees images and draws charts, plugs into MCP and skills, and remembers who you are.
 </p>
 
 <p align="center">

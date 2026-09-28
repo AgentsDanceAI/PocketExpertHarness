@@ -64,6 +64,7 @@ button { cursor: pointer; }
 .link:hover { background: var(--surface-2); color: var(--ink); }
 .promo { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); text-decoration: none; font-size: 12.5px; line-height: 1.5; }
 .promo strong { color: var(--accent); font-size: 13.5px; }
+.promo em { font-style: normal; font-weight: 600; }
 .promo span { color: var(--muted); }
 
 /* ── 主区 ── */
