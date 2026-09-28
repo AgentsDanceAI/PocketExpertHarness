@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/logo.png" alt="PocketExpertHarness" width="88"><br>
+  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/logo.png" alt="PocketExpertHarness" width="88"><br>
   PocketExpertHarness
 </h1>
 
@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <b>简体中文</b> · <a href="README.en.md">English</a>
+  <b>简体中文</b> · <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/README.en.md">English</a>
 </p>
 
 <p align="center">
   <a href="#-5-分钟跑起来"><img src="https://img.shields.io/badge/5_分钟-跑起来-06B6D4?style=for-the-badge" alt="5 分钟跑起来"></a>
   <a href="#-什么是智能体内核"><img src="https://img.shields.io/badge/先看-背景-F59E0B?style=for-the-badge" alt="先看背景"></a>
   <a href="https://agentsdance.ai"><img src="https://img.shields.io/badge/在线体验-免注册-8B5CF6?style=for-the-badge" alt="在线体验"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-22C55E?style=for-the-badge" alt="Apache-2.0"></a>
+  <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-22C55E?style=for-the-badge" alt="Apache-2.0"></a>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="网页聊天界面" width="820">
+  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/screenshot.png" alt="网页聊天界面" width="820">
 </p>
 
 > **不想装? 直接在线体验 (免注册):** <https://agentsdance.ai>
@@ -246,8 +246,8 @@ asyncio.run(main())
 ## 🏗️ 架构
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-zh-dark.svg">
-  <img alt="PocketExpertHarness 架构: kernel 内核 (Inbox → ReactLoop → SessionLog + hooks) 通过 llm / tools / assemble 三个端口接外壳" src="docs/architecture-zh-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/architecture-zh-dark.svg">
+  <img alt="PocketExpertHarness 架构: kernel 内核 (Inbox → ReactLoop → SessionLog + hooks) 通过 llm / tools / assemble 三个端口接外壳" src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/architecture-zh-light.svg">
 </picture>
 
 内核只有三个端口: 调模型、执行工具、装配系统提示。外壳 (本仓其余部分) 就是这三个端口的一种实现, 你可以换掉任何一个。
@@ -272,7 +272,7 @@ asyncio.run(main())
 - `run_python` **不是安全沙箱**: 在本机跑就是在你的电脑上执行模型写的代码。命令行默认每次先问 (`ask`), 网页服务默认只在容器里开启。子进程拿不到环境变量里的密钥。
 - 网页服务默认只监听 127.0.0.1。要让别的机器访问, 必须先设 `PEH_ACCESS_TOKEN`, 否则拒绝启动。
 - `open_url` 默认拒绝内网与云主机元数据地址, 每一跳重定向都重新检查 (`PEH_ALLOW_PRIVATE_URLS=1` 可放开)。
-- 发现安全问题请看 [SECURITY.md](SECURITY.md)。
+- 发现安全问题请看 [SECURITY.md](https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/SECURITY.md)。
 
 ## 🧪 和口袋专家 AI 的关系
 
@@ -291,11 +291,11 @@ asyncio.run(main())
 
 ## 🤝 参与贡献
 
-欢迎 issue 和 PR, 见 [CONTRIBUTING.md](CONTRIBUTING.md)。`kernel/` 由上游导出, 请不要在本仓直接修改, 有问题提 issue。
+欢迎 issue 和 PR, 见 [CONTRIBUTING.md](https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/CONTRIBUTING.md)。`kernel/` 由上游导出, 请不要在本仓直接修改, 有问题提 issue。
 
 ## 📄 许可证
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/LICENSE)
 
 ## ⭐ Star History
 

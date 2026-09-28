@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/logo.png" alt="PocketExpertHarness" width="88"><br>
+  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/logo.png" alt="PocketExpertHarness" width="88"><br>
   PocketExpertHarness
 </h1>
 
@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="README.md">简体中文</a> · <b>English</b>
+  <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/README.md">简体中文</a> · <b>English</b>
 </p>
 
 <p align="center">
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-5_min-06B6D4?style=for-the-badge" alt="Quick Start"></a>
   <a href="#-what-is-an-agent-harness"><img src="https://img.shields.io/badge/Start_here-Background-F59E0B?style=for-the-badge" alt="Background"></a>
   <a href="https://agentsdance.ai"><img src="https://img.shields.io/badge/Try_online-No_signup-8B5CF6?style=for-the-badge" alt="Try online"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-22C55E?style=for-the-badge" alt="Apache-2.0"></a>
+  <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-22C55E?style=for-the-badge" alt="Apache-2.0"></a>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="Web chat" width="820">
+  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/screenshot.png" alt="Web chat" width="820">
 </p>
 
 > **Try it online, no signup:** <https://agentsdance.ai>
@@ -184,8 +184,8 @@ asyncio.run(main())
 ```
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-en-dark.svg">
-  <img alt="PocketExpertHarness architecture: the kernel (Inbox → ReactLoop → SessionLog + hooks) connects to the shell through three ports: llm, tools and assemble" src="docs/architecture-en-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/architecture-en-dark.svg">
+  <img alt="PocketExpertHarness architecture: the kernel (Inbox → ReactLoop → SessionLog + hooks) connects to the shell through three ports: llm, tools and assemble" src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/architecture-en-light.svg">
 </picture>
 
 The kernel has exactly three ports: call the model, run a tool, assemble the system prompt. The rest of this repository is one implementation of those ports; swap any of them.
@@ -198,7 +198,7 @@ The kernel has exactly three ports: call the model, run a tool, assemble the sys
 
 - `run_python` is **not a sandbox**. Locally it runs model-written code on your machine; the CLI asks first by default and the web server enables it only inside a container. Secrets in the environment are not passed to the child process.
 - The web server binds to 127.0.0.1 and refuses to listen publicly unless `PEH_ACCESS_TOKEN` is set.
-- See [SECURITY.md](SECURITY.md) to report a vulnerability.
+- See [SECURITY.md](https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/SECURITY.md) to report a vulnerability.
 
 ## 🧪 PocketExpert AI
 
@@ -212,11 +212,11 @@ This repository is the kernel. The full product at [agentsdance.ai](https://agen
 
 ## 🤝 Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). `kernel/` is exported from upstream; please open an issue instead of editing it here.
+See [CONTRIBUTING.md](https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/CONTRIBUTING.md). `kernel/` is exported from upstream; please open an issue instead of editing it here.
 
 ## 📄 License
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](https://github.com/AgentsDanceAI/PocketExpertHarness/blob/main/LICENSE)
 
 ## ⭐ Star History
 

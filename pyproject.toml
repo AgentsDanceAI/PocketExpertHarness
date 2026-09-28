@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "pocketexpert-harness"
 version = "0.1.0"
 description = "The open-core agent harness behind PocketExpert AI: ReAct engine, MCP, skills, long-term memory, CLI and web chat."
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "AgentsDance" }]
 requires-python = ">=3.10"
 dependencies = [
@@ -17,7 +18,6 @@ dependencies = [
 ]
 keywords = ["agent", "llm", "react", "mcp", "skills", "harness", "openai-compatible", "deepseek", "qwen"]
 classifiers = [
-  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -27,6 +27,8 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5"]
 
 [project.urls]
 Homepage = "https://agentsdance.ai"
+Repository = "https://github.com/AgentsDanceAI/PocketExpertHarness"
+Issues = "https://github.com/AgentsDanceAI/PocketExpertHarness/issues"
 
 [project.scripts]
 pocketexpert-harness = "pocketexpert_harness.cli:main"

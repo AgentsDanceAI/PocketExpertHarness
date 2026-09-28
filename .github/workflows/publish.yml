@@ -1,0 +1,55 @@
+name: publish
+
+# 打 v* 标签 → 测试 → 打包 → 发到 PyPI (可信发布, 不存任何令牌)。
+# PyPI 那边的「待定发布者」须填: 项目 pocketexpert-harness / 所有者 AgentsDanceAI /
+# 仓库 PocketExpertHarness / 工作流 publish.yml / 环境 pypi。只用 GitHub 托管的机器。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 标签要和包的版本号一致
+        run: |
+          v=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          i=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('pocketexpert_harness/__init__.py').read()).group(1))")
+          [ "v$v" = "$GITHUB_REF_NAME" ] && [ "$v" = "$i" ] || { echo "::error::标签 $GITHUB_REF_NAME / pyproject $v / __init__ $i 不一致"; exit 1; }
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine && python -m build && twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
