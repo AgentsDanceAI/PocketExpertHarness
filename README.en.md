@@ -97,17 +97,24 @@ Open <http://127.0.0.1:8080>. Sessions, memory and workspace files live in `./da
 - Update: `git pull && docker compose up -d --build`
 - Stop: `docker compose down`
 
-### 2. Or run it locally (Python 3.10+)
+### 2. Or run it locally (one line, no clone)
+
+Install [uv](https://docs.astral.sh/uv/) (think `npx` for Python; or `pip install uv`), then:
 
 ```bash
-git clone https://github.com/AgentsDanceAI/PocketExpertHarness.git
-cd PocketExpertHarness
-pip install -e .                                   # installs one command: peh
-export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...    # or put these in a .env file in the current directory
-peh serve                                          # web chat, open http://127.0.0.1:8080
+export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...
+uvx --from git+https://github.com/AgentsDanceAI/PocketExpertHarness peh serve     # open http://127.0.0.1:8080
 ```
 
-**What `peh` is**: this project's own command (short for PocketExpert Harness), installed by `pip install`. The ones you'll use:
+The first run downloads and installs everything in a few seconds; after that it starts instantly. To keep `peh` on your PATH:
+
+```bash
+uv tool install git+https://github.com/AgentsDanceAI/PocketExpertHarness          # or: pipx install git+https://github.com/AgentsDanceAI/PocketExpertHarness
+```
+
+To hack on the code, clone the repo and `pip install -e .`.
+
+**What `peh` is**: this project's own command (short for PocketExpert Harness), available after any of the installs above. The ones you'll use:
 
 | Command | What it does |
 |---|---|
@@ -118,10 +125,11 @@ peh serve                                          # web chat, open http://127.0
 
 **Web search (bring your own when running locally; without it everything works except searching the web)** — pick one:
 
-- **Run your own SearXNG (free, no key, recommended)**: needs Docker; uses the config shipped in this repo:
+- **Run your own SearXNG (free, no key, recommended)**: needs Docker; grab the ready-made config first:
   ```bash
+  curl -fsSLo searxng.yml https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/deploy/searxng/settings.yml
   docker run -d --name searxng -p 127.0.0.1:8888:8080 -e SEARXNG_SECRET=some-random-string \
-    -v "$PWD/deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro" searxng/searxng
+    -v "$PWD/searxng.yml:/etc/searxng/settings.yml:ro" searxng/searxng
   export SEARXNG_URL=http://127.0.0.1:8888
   ```
 - **Tavily**: get a key at [tavily.com](https://tavily.com), then `export TAVILY_API_KEY=tvly-...`
@@ -174,6 +182,11 @@ async def main():
 
 asyncio.run(main())
 ```
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-en-dark.svg">
+  <img alt="PocketExpertHarness architecture: the kernel (Inbox → ReactLoop → SessionLog + hooks) connects to the shell through three ports: llm, tools and assemble" src="docs/architecture-en-light.svg">
+</picture>
 
 The kernel has exactly three ports: call the model, run a tool, assemble the system prompt. The rest of this repository is one implementation of those ports; swap any of them.
 

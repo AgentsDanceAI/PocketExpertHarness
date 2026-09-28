@@ -97,17 +97,24 @@ docker compose up -d        # 第一次要构建镜像, 等几分钟
 - 更新到最新版: `git pull && docker compose up -d --build`
 - 停掉: `docker compose down`
 
-### 2. 或者直接在本机跑 (Python 3.10+)
+### 2. 或者直接在本机跑 (一行, 不用下载代码)
+
+装好 [uv](https://docs.astral.sh/uv/) (Python 世界的 `npx`; 没有的话 `pip install uv`), 然后:
 
 ```bash
-git clone https://github.com/AgentsDanceAI/PocketExpertHarness.git
-cd PocketExpertHarness
-pip install -e .                                   # 装好后多出一个命令: peh
-export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...    # 也可以写进当前目录的 .env 文件
-peh serve                                          # 网页聊天, 浏览器打开 http://127.0.0.1:8080
+export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...
+uvx --from git+https://github.com/AgentsDanceAI/PocketExpertHarness peh serve     # 浏览器打开 http://127.0.0.1:8080
 ```
 
-**`peh` 是什么**: 就是这个项目本身的命令 (PocketExpert Harness 的缩写), `pip install` 时装进系统。常用的几个:
+第一次会自动下载并装好依赖 (几秒钟), 以后秒开。想长期用、以后直接敲 `peh`:
+
+```bash
+uv tool install git+https://github.com/AgentsDanceAI/PocketExpertHarness          # 或者 pipx install git+https://github.com/AgentsDanceAI/PocketExpertHarness
+```
+
+要改代码就 clone 下来 `pip install -e .`。
+
+**`peh` 是什么**: 就是这个项目本身的命令 (PocketExpert Harness 的缩写), 用上面任一种方式装好就有。常用的几个:
 
 | 命令 | 做什么 |
 |---|---|
@@ -118,10 +125,11 @@ peh serve                                          # 网页聊天, 浏览器打�
 
 **联网搜索 (本机方式要自己接一个, 不接也能用, 只是不能上网搜)** —— 三选一:
 
-- **自己起一个 SearXNG (免费, 不用 Key, 推荐)**: 需要 Docker, 用仓库里现成的配置起一个:
+- **自己起一个 SearXNG (免费, 不用 Key, 推荐)**: 需要 Docker, 先取一份现成的配置再起:
   ```bash
+  curl -fsSLo searxng.yml https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/deploy/searxng/settings.yml
   docker run -d --name searxng -p 127.0.0.1:8888:8080 -e SEARXNG_SECRET=换一串随机字符 \
-    -v "$PWD/deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro" searxng/searxng
+    -v "$PWD/searxng.yml:/etc/searxng/settings.yml:ro" searxng/searxng
   export SEARXNG_URL=http://127.0.0.1:8888
   ```
 - **Tavily**: 在 [tavily.com](https://tavily.com) 注册拿 Key, `export TAVILY_API_KEY=tvly-...`
@@ -237,15 +245,10 @@ asyncio.run(main())
 
 ## 🏗️ 架构
 
-```
-             ┌──────────────── kernel/ (与生产同一份, 原样导出) ────────────────┐
- 用户的话 ──▶ │ Inbox ─▶ ReactLoop ─▶ 每一步: 装配提示 → 压缩 → 步前钩子 → 调模型 → 执行工具 │ ──▶ 事件流
- 中途插话 ──▶ │   ▲            │  SessionLog (唯一事实源, 每次请求重新推导消息)            │
-             │   └── hooks: 步数/时长上限 · 瞬时错误重试 · 过渡语纠正 · 模型停了再看一眼     │
-             └───────▲──────────────────▲───────────────────────▲──────────────────┘
-                   llm 端口          tools 端口             assemble 端口
-                 llm.py (OpenAI 兼容)  tools/ · mcp.py · skills   prompt.py · memory.py
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-zh-dark.svg">
+  <img alt="PocketExpertHarness 架构: kernel 内核 (Inbox → ReactLoop → SessionLog + hooks) 通过 llm / tools / assemble 三个端口接外壳" src="docs/architecture-zh-light.svg">
+</picture>
 
 内核只有三个端口: 调模型、执行工具、装配系统提示。外壳 (本仓其余部分) 就是这三个端口的一种实现, 你可以换掉任何一个。
 
