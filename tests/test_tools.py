@@ -44,6 +44,14 @@ async def test_run_python_output_env_and_timeout(settings, monkeypatch):
     assert not [p for p in os.listdir(settings.workspace) if p.startswith(".peh_")]
 
 
+async def test_run_python_charts_default_to_cjk_fonts(settings):
+    code, out = await local.run_python(
+        "import matplotlib\nprint(matplotlib.get_backend(), matplotlib.rcParams['font.sans-serif'][0], matplotlib.rcParams['axes.unicode_minus'])",
+        settings.workspace, mpl_dir=local.mpl_config_dir(settings.home))
+    assert code == 0 and out.lower().startswith("agg pingfang sc") and out.strip().endswith("False"), out
+    assert not (settings.workspace / "matplotlibrc").exists(), "配置放 PEH_HOME, 不弄脏工作区"
+
+
 async def test_python_tool_off_and_ask(settings):
     settings.python_mode = "off"
     assert "run_python" not in [t.name for t in local.make_tools(settings)]

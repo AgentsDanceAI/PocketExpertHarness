@@ -7,8 +7,12 @@ OpenRouter / Ollama 都走这一条 (/chat/completions + tools)。
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import mimetypes
+import re
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import httpx
@@ -16,6 +20,62 @@ import httpx
 from pocketexpert_harness.config import Settings
 
 logger = logging.getLogger(__name__)
+
+
+#: 用户消息里的图片标记。内核的会话日志只存文字 (上游原样导出, 不在本仓改), 所以附件图片在日志里只是一个标记,
+#: 发请求那一刻才换成 OpenAI 格式的 image_url 内容块 —— 历史不会被几 MB 的 base64 撑大。
+IMAGE_MARKER = re.compile(r"\[\[peh-image:([^\]\n]+)\]\]")
+MAX_IMAGES_PER_REQUEST = 6          # 只带最近的几张, 免得每一步都重发全部历史图片
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+def expand_images(messages: list, workspace: Optional[Path], enabled: bool) -> list:
+    """把用户消息里的图片标记换成内容块; 不支持看图 / 超出张数 / 文件没了 → 换成一句文字说明。"""
+    if not any(m.get("role") == "user" and IMAGE_MARKER.search(str(m.get("content") or "")) for m in messages):
+        return messages
+    budget = MAX_IMAGES_PER_REQUEST if enabled and workspace else 0
+    keep: set[tuple[int, int]] = set()
+    for i in range(len(messages) - 1, -1, -1):             # 从最新往回数
+        m = messages[i]
+        if m.get("role") != "user":
+            continue
+        for j, _ in enumerate(IMAGE_MARKER.finditer(str(m.get("content") or ""))):
+            if budget > 0:
+                keep.add((i, j))
+                budget -= 1
+    out = []
+    for i, m in enumerate(messages):
+        content = str(m.get("content") or "") if m.get("role") == "user" else None
+        if content is None or not IMAGE_MARKER.search(content):
+            out.append(m)
+            continue
+        parts: list[dict] = []
+        idx = 0
+
+        def _swap(match: "re.Match", _i: int = i, _parts: list = parts) -> str:
+            nonlocal idx
+            rel = match.group(1).strip()
+            j, idx = idx, idx + 1
+            if (_i, j) in keep:
+                data = _image_data_url(workspace, rel)
+                if data:
+                    _parts.append({"type": "image_url", "image_url": {"url": data}})
+                    return f"(图片 {rel})"
+            return f"(图片 {rel}{'' if enabled else ', 当前模型看不了图, 只能当文件处理'})"
+        text = IMAGE_MARKER.sub(_swap, content)
+        out.append({**m, "content": [{"type": "text", "text": text}] + parts} if parts else {**m, "content": text})
+    return out
+
+
+def _image_data_url(workspace: Optional[Path], rel: str) -> str:
+    if workspace is None:
+        return ""
+    root = workspace.resolve()
+    p = (root / rel).resolve()
+    if root not in p.parents or not p.is_file() or p.stat().st_size > MAX_IMAGE_BYTES:
+        return ""
+    mime = mimetypes.guess_type(p.name)[0] or "image/png"
+    return f"data:{mime};base64," + base64.b64encode(p.read_bytes()).decode()
 
 
 class LLMError(RuntimeError):
@@ -54,6 +114,7 @@ class ChatModel:
         return h
 
     def _body(self, messages: list, model: str, tools: Optional[list], stream: bool) -> dict:
+        messages = expand_images(messages, self.s.workspace, self.s.supports_vision)
         body: dict[str, Any] = {"model": model, "messages": messages, "stream": stream}
         if tools:
             body["tools"] = tools

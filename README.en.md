@@ -67,6 +67,7 @@ PocketExpertHarness is the harness that runs [PocketExpert AI](https://agentsdan
 
 ## 📰 What's new
 
+- **2026-09-29** **v0.2.0** — upload images, files and videos in the web UI (paperclip, paste or drag-and-drop); vision models see images directly; charts and files in answers render inline and download with one click, plus a Workspace files panel; a live timer from the moment you send (thinking → step N → total time); copy buttons for answers and code blocks; matplotlib bundled with CJK fonts preconfigured; `peh run -f FILE` and `/file PATH` in terminal chat.
 - **2026-09-24** 🎉 **v0.1.0, first open-source release** — the same kernel as PocketExpert AI in production; web chat (steer mid-run, stop any time) and CLI; MCP (stdio / Streamable HTTP), SKILL.md skills, long-term memory; presets for DeepSeek / Qwen / SiliconFlow / OpenAI / OpenRouter / Ollama; `docker compose` ships SearXNG for web search.
 
 ## 🚀 Quick start
@@ -124,6 +125,7 @@ To hack on the code, clone the repo and `pip install -e .`.
 | `peh serve` | web chat (the same UI as the Docker setup) |
 | `peh` | chat right in the terminal |
 | `peh run "question"` | ask once and exit — handy in scripts |
+| `peh run -f report.xlsx "summarize"` | ask with attachments (repeat `-f`); in terminal chat use `/file PATH` |
 | `peh doctor` | check that model, search and MCP are configured |
 
 **Web search (bring your own when running locally; without it everything works except searching the web)** — pick one:
@@ -152,6 +154,10 @@ It makes one real model call, then reports search, code execution and MCP status
 ## 🧠 Models
 
 Any OpenAI-compatible `/chat/completions` endpoint with tool calling works. Presets: `deepseek`, `qwen`, `siliconflow`, `openai`, `openrouter`, `ollama`. Override with `LLM_MODEL` and `LLM_BASE_URL`.
+
+## 🖼️ Images, files and charts
+
+Attach files in the web UI with the paperclip, by pasting, or by dragging them in (≤ 50MB each, up to 10 per message); they land in the workspace under `uploads/`. Images go straight to vision models — detected from the model name (`vl`, `vision`, `gpt-4o`, `claude`, `gemini`, `omni`, …) or forced with `PEH_VISION=on|off`. Video and audio can be uploaded and processed as files, but no audio/video understanding model is wired in yet. Ask for a chart and it is drawn with matplotlib, saved to the workspace and shown inline; the Workspace files panel lists everything the agent produced.
 
 ## 🔧 Tools
 

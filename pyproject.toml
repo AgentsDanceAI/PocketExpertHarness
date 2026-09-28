@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pocketexpert-harness"
-version = "0.1.0"
+version = "0.2.0"
 description = "The open-core agent harness behind PocketExpert AI: ReAct engine, MCP, skills, long-term memory, CLI and web chat."
 readme = "README.md"
 license = "Apache-2.0"
@@ -15,6 +15,7 @@ dependencies = [
   "httpx>=0.27",
   "fastapi>=0.110",
   "uvicorn>=0.29",
+  "matplotlib>=3.7",     # run_python 画图开箱即用 (uvx 装的环境里没有 pip, 模型装不了)
 ]
 keywords = ["agent", "llm", "react", "mcp", "skills", "harness", "openai-compatible", "deepseek", "qwen"]
 classifiers = [

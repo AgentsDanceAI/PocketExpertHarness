@@ -14,6 +14,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 import httpx
 
 from pocketexpert_harness.config import Settings
+from pocketexpert_harness.files import KIND_LABEL, human_size, kind_of
 from pocketexpert_harness.kernel import hooks
 from pocketexpert_harness.kernel.loop import PING, Inbox, ReactLoop, SessionLog, heartbeat
 from pocketexpert_harness.llm import ChatModel
@@ -64,6 +65,40 @@ def search_brake(steps_log: list, limit: int = SEARCH_BRAKE_AT):
                                   f"你这一轮已经搜索了 {n} 次。除非还缺一个决定性的事实, 否则停止搜索, 用已有信息给出最终回答,"
                                   "查不到的部分如实说明。"}]
     return plugin
+
+
+def compose_message(text: str, attachments: Optional[list], *, vision: bool, workspace=None) -> str:
+    """用户这句话 + 附件说明。附件已经落在工作区 (uploads/…), 模型用 read_file / run_python 就能处理;
+    能看图的模型再给图片标记, 发请求时由 llm.expand_images 换成真正的图片内容块。"""
+    text = (text or "").strip()
+    items = []
+    for a in attachments or []:
+        path = str((a or {}).get("path") or "").strip()
+        if not path:
+            continue
+        if workspace is not None:
+            from pocketexpert_harness.tools.local import resolve_in
+            try:
+                if not resolve_in(workspace, path).is_file():
+                    continue
+            except PermissionError:
+                continue
+        kind = str(a.get("kind") or kind_of(path))
+        items.append((path, kind, int(a.get("size") or 0)))
+    if not items:
+        return text
+    lines = [text or "请看我上传的附件。", "", "[我上传的附件, 已保存在工作区, 可以用 read_file / list_files / run_python 处理]"]
+    for path, kind, size in items:
+        extra = f", {human_size(size)}" if size else ""
+        note = ""
+        if kind == "image" and not vision:
+            note = " —— 当前模型看不了图, 只能当文件处理"
+        elif kind in ("video", "audio"):
+            note = " —— 当前没有音视频理解能力, 可以用 run_python 读元数据或抽帧"
+        lines.append(f"- {KIND_LABEL.get(kind, '文件')} {path}{extra}{note}")
+        if kind == "image" and vision:
+            lines.append(f"[[peh-image:{path}]]")
+    return "\n".join(lines)
 
 
 def project_history(log: SessionLog) -> list[dict]:
@@ -164,13 +199,14 @@ class Harness:
                                    workspace=str(self.s.workspace), tool_names=self.registry.names)
 
     async def run_turn(self, history: list[dict], message: str, *, inbox: Optional[Inbox] = None,
-                       task_id: str = "") -> AsyncIterator[dict]:
+                       task_id: str = "", attachments: Optional[list] = None) -> AsyncIterator[dict]:
         """跑一轮。产出内核事件 (dict), 最后一个是 {"event": "done", answer, kind, history, ...}。
         想中途插话: 自己建一个 Inbox 传进来, 跑的过程中调 inbox.steer("...")。"""
         if not self.started:
             await self.start()
         ctx = hooks.TurnContext(task_id=task_id or uuid.uuid4().hex[:12], max_steps=self.s.max_steps,
                                 model=self.s.model, extra={"goal": message})
+        message = compose_message(message, attachments, vision=self.s.supports_vision, workspace=self.s.workspace)
         log = SessionLog()
         log.seed(history or [])
         inbox = inbox or Inbox()

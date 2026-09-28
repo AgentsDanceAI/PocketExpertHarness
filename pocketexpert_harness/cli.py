@@ -23,6 +23,20 @@ from pocketexpert_harness.config import Settings, in_container
 from pocketexpert_harness.sessions import SessionStore
 from pocketexpert_harness.tools.web import search_backend
 
+def attach_local(s: Settings, paths: list[str]) -> list[dict]:
+    """本机文件 → 复制进工作区 uploads/ → 附件列表 (与网页上传同一套)。"""
+    from pathlib import Path
+
+    from pocketexpert_harness.files import save_upload
+    out = []
+    for raw in paths or []:
+        p = Path(raw).expanduser()
+        if not p.is_file():
+            raise SystemExit(f"找不到文件: {raw}")
+        out.append(save_upload(s.workspace, p.name, p.read_bytes()))
+    return out
+
+
 PROMO = "想要 250+ 位行业专家、专家群协作、一键出 PPT / 网页 / 视频和手机 App? → 口袋专家 AI  https://agentsdance.ai"
 
 
@@ -79,7 +93,7 @@ def make_confirm(st: Style, auto_yes: bool):
     return confirm
 
 
-async def run_one_turn(h: Harness, history: list, text: str, st: Style) -> tuple[str, list]:
+async def run_one_turn(h: Harness, history: list, text: str, st: Style, attachments: Optional[list] = None) -> tuple[str, list]:
     """跑一轮并把过程打印出来; 返回 (回答, 新历史)。Ctrl+C 停止这一轮。"""
     task = asyncio.current_task()
     loop = asyncio.get_running_loop()
@@ -92,7 +106,7 @@ async def run_one_turn(h: Harness, history: list, text: str, st: Style) -> tuple
             pass
     streamed, answer, new_history = False, "", history
     try:
-        async for ev in h.run_turn(history, text):
+        async for ev in h.run_turn(history, text, attachments=attachments):
             e = ev.get("event")
             if e == "assistant_delta":
                 sys.stdout.write(str(ev.get("text") or ""))
@@ -139,7 +153,8 @@ async def cmd_chat(s: Settings, args) -> int:
     for row in h.mcp.status():
         if row["status"] == "failed":
             print(st.red(f"  MCP {row['name']} 没连上: {row.get('error')}"))
-    print(st.dim("输入问题回车; /new 新会话, /memory 看记忆, /tools 看工具, /exit 退出; 回答中按 Ctrl+C 停止这一轮。"))
+    print(st.dim("输入问题回车; /file 路径 附上文件, /new 新会话, /memory 看记忆, /tools 看工具, /exit 退出; 回答中按 Ctrl+C 停止这一轮。"))
+    pending: list[dict] = []
     print(st.dim(PROMO) + "\n")
     try:
         while True:
@@ -158,7 +173,15 @@ async def cmd_chat(s: Settings, args) -> int:
             if text == "/memory":
                 print(h.memory.render() or st.dim("(还没有长期记忆)"))
                 continue
-            answer, sess["history"] = await run_one_turn(h, sess.get("history") or [], text, st)
+            if text.startswith("/file "):
+                try:
+                    pending += attach_local(s, [text[6:].strip().strip("'\"")])
+                    print(st.dim(f"已附上: {pending[-1]['path']} (和下一句话一起发)"))
+                except SystemExit as e:
+                    print(st.red(str(e)))
+                continue
+            atts, pending = pending, []
+            answer, sess["history"] = await run_one_turn(h, sess.get("history") or [], text, st, atts)
             sess["transcript"] += [{"role": "user", "text": text}, {"role": "assistant", "text": answer}]
             if sess.get("title") == "新对话":
                 sess["title"] = text[:40]
@@ -177,7 +200,7 @@ async def cmd_run(s: Settings, args) -> int:
     await h.start()
     try:
         answer = ""
-        async for ev in h.run_turn([], args.question):
+        async for ev in h.run_turn([], args.question, attachments=attach_local(s, args.file)):
             e = ev.get("event")
             if e == "step" and not args.quiet:
                 print(st.dim(f"→ {ev.get('tool')} {_short(ev.get('args') or {})}"), file=sys.stderr)
@@ -246,6 +269,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_chat.add_argument("-y", "--yes", action="store_true", help="运行代码前不再询问")
     p_run = sub.add_parser("run", help="问一句就退出")
     p_run.add_argument("question")
+    p_run.add_argument("-f", "--file", action="append", default=[], help="附上文件 (可多次), 会复制进工作区 uploads/")
     p_run.add_argument("-q", "--quiet", action="store_true", help="不打印过程")
     p_run.add_argument("-y", "--yes", action="store_true", help="运行代码前不再询问")
     p_serve = sub.add_parser("serve", help="网页聊天")

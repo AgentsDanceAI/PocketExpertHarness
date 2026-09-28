@@ -20,6 +20,7 @@
     <button class="btn-new" id="newChat" type="button">＋ 新对话</button>
     <nav class="sessions" id="sessions" aria-label="会话"></nav>
     <div class="side-foot">
+      <button class="link" id="openFiles" type="button">工作区文件</button>
       <button class="link" id="openMemory" type="button">长期记忆</button>
       <button class="link" id="openInfo" type="button">工具与技能</button>
       <a class="promo" href="https://agentsdance.ai" target="_blank" rel="noopener">
@@ -39,17 +40,23 @@
     <section class="thread" id="thread" aria-live="polite">
       <div class="empty" id="empty">
         <h2>想让它帮你做什么?</h2>
-        <p>它会自己决定下一步: 搜索、读网页、跑代码、读写文件、调用你接入的 MCP 工具和技能, 直到把事做完。</p>
+        <p>它会自己决定下一步: 搜索、读网页、跑代码、读写文件、调用你接入的 MCP 工具和技能, 直到把事做完。图片和文件可以直接拖进来。</p>
         <div class="starters" id="starters">
           <button type="button">查一下这周 AI 领域最重要的三条新闻, 每条附来源</button>
-          <button type="button">用 Python 算一下: 月供 8000 元、利率 3.1%、30 年, 贷款总额是多少</button>
+          <button type="button">用 Python 画一张过去 12 个月的示例销售趋势图, 标出最高和最低的月份</button>
           <button type="button">记住: 我做跨境电商, 以后回答都给出可执行的清单</button>
         </div>
       </div>
     </section>
 
     <form class="composer" id="composer" autocomplete="off">
-      <textarea id="input" rows="1" placeholder="输入问题" aria-label="消息"></textarea>
+      <div class="tray" id="tray" hidden></div>
+      <p class="vision-hint" id="visionHint" hidden>当前模型看不了图, 图片会按文件交给它 (能读尺寸、用 Python 处理)。想让它看懂图片, 换一个看图模型, 比如 qwen-vl-max。</p>
+      <button class="attach" id="attach" type="button" aria-label="添加图片或文件" title="添加图片或文件 (也可以粘贴、拖进来)">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.6 12.8 20.2a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg>
+      </button>
+      <input type="file" id="fileInput" multiple hidden>
+      <textarea id="input" rows="1" placeholder="输入问题, 也可以把图片或文件拖进来" aria-label="消息"></textarea>
       <div class="composer-actions">
         <button class="btn-stop" id="stop" type="button" hidden>停止</button>
         <button class="btn-send" id="send" type="submit">发送</button>
@@ -68,6 +75,14 @@
   <h3>记住的要点</h3>
   <ul class="mem-list" id="memItems"></ul>
 </dialog>
+
+<dialog class="panel" id="filesPanel">
+  <form method="dialog" class="panel-head"><h2>工作区文件</h2><button class="icon-btn" aria-label="关闭">✕</button></form>
+  <p class="panel-note">你上传的附件 (uploads/) 和它写出来的报告、图表、代码都在这里, 点开查看或下载。</p>
+  <ul class="file-list" id="fileList"></ul>
+</dialog>
+
+<div class="drop-mask" id="dropMask" hidden><div>松手即可添加图片或文件</div></div>
 
 <dialog class="panel" id="infoPanel">
   <form method="dialog" class="panel-head"><h2>工具与技能</h2><button class="icon-btn" aria-label="关闭">✕</button></form>

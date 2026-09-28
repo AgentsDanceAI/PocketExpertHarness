@@ -21,6 +21,14 @@ PY_TIMEOUT = 90
 PY_OUTPUT = 20_000
 #: 子进程只继承这些环境变量 (不含任何 KEY / TOKEN)
 PY_ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "TMPDIR", "SYSTEMROOT", "PYTHONIOENCODING")
+#: 画图默认: 无界面后端 + 常见系统的中文字体依次兜底 (不然中文全是方块)
+MATPLOTLIBRC = """backend: Agg
+font.family: sans-serif
+font.sans-serif: PingFang SC, Hiragino Sans GB, Heiti SC, Microsoft YaHei, SimHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, WenQuanYi Zen Hei, WenQuanYi Micro Hei, Arial Unicode MS, DejaVu Sans
+axes.unicode_minus: False
+savefig.dpi: 150
+savefig.bbox: tight
+"""
 
 
 def resolve_in(root: Path, rel: str) -> Path:
@@ -41,10 +49,22 @@ def _limits() -> None:      # pragma: no cover — 在子进程里执行
         pass
 
 
-async def run_python(code: str, cwd: Path, timeout: float = PY_TIMEOUT) -> tuple[int, str]:
+def mpl_config_dir(home: Path) -> Path:
+    """matplotlib 配置目录 (放 matplotlibrc + 字体缓存), 放在 PEH_HOME 下, 不进工作区。"""
+    d = home / "matplotlib"
+    d.mkdir(parents=True, exist_ok=True)
+    rc = d / "matplotlibrc"
+    if not rc.exists() or rc.read_text(encoding="utf-8") != MATPLOTLIBRC:
+        rc.write_text(MATPLOTLIBRC, encoding="utf-8")
+    return d
+
+
+async def run_python(code: str, cwd: Path, timeout: float = PY_TIMEOUT, *, mpl_dir: Path | None = None) -> tuple[int, str]:
     cwd.mkdir(parents=True, exist_ok=True)
     env = {k: os.environ[k] for k in PY_ENV_KEEP if k in os.environ}
     env["PYTHONIOENCODING"] = "utf-8"
+    if mpl_dir is not None:
+        env["MPLCONFIGDIR"] = str(mpl_dir)
     with tempfile.NamedTemporaryFile("w", suffix=".py", dir=cwd, prefix=".peh_", delete=False, encoding="utf-8") as f:
         f.write(code)
         script = f.name
@@ -60,6 +80,8 @@ async def run_python(code: str, cwd: Path, timeout: float = PY_TIMEOUT) -> tuple
             await proc.wait()
             return -9, f"(超时 {int(timeout)} 秒, 已终止)"
         text = out.decode("utf-8", "replace")
+        # 字体兜底时 matplotlib 会刷「字重对不上」的提示, 无害, 但模型会当成报错去折腾
+        text = "".join(ln for ln in text.splitlines(keepends=True) if not ln.startswith("findfont: Failed to find font weight"))
         if len(text) > PY_OUTPUT:
             text = text[:PY_OUTPUT // 2] + f"\n…(输出太长, 中间省略 {len(text) - PY_OUTPUT} 字)…\n" + text[-PY_OUTPUT // 2:]
         return proc.returncode or 0, text
@@ -123,13 +145,13 @@ def make_tools(s: Settings, *, confirm_python=None) -> list[Tool]:
     ]
     if s.python_mode != "off":
         async def _py(args: dict) -> str:
-            code, out = await run_python(str(args.get("code") or ""), ws)
+            code, out = await run_python(str(args.get("code") or ""), ws, mpl_dir=mpl_config_dir(s.home))
             return f"退出码 {code}\n{out}" if out else f"退出码 {code} (无输出)"
         tools.append(Tool(
             name="run_python", handler=_py, obs_cap=8000, timeout=PY_TIMEOUT + 10,
             confirm=confirm_python if s.python_mode == "ask" else None,
             description="运行一段 Python 3 代码 (工作目录 = 工作区), 返回标准输出。用于计算、数据处理、画图存文件。"
-                        "用 print 输出结果; 单次最长 90 秒; 能用的库以运行环境里装了的为准。",
+                        "用 print 输出结果; 单次最长 90 秒; 自带 matplotlib (中文字体已配好, 别改字体设置), 其他库以运行环境里装了的为准。",
             parameters={"type": "object", "properties": {"code": {"type": "string", "description": "完整的 Python 代码"}},
                         "required": ["code"]}))
     return tools

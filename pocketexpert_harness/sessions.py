@@ -97,5 +97,8 @@ class TranscriptBuilder:
         elif e == "done":
             self.answer, self.kind = str(ev.get("answer") or ""), str(ev.get("kind") or "")
 
-    def record(self) -> dict:
-        return {"role": "assistant", "text": self.answer, "steps": self.steps, "kind": self.kind, "at": time.time()}
+    def record(self, took: Optional[float] = None) -> dict:
+        rec = {"role": "assistant", "text": self.answer, "steps": self.steps, "kind": self.kind, "at": time.time()}
+        if took is not None:
+            rec["took"] = round(took, 1)
+        return rec

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,6 +23,11 @@ PROVIDERS: dict[str, dict] = {
 
 #: 代码执行开关: on = 直接跑; ask = 命令行里每次先问; off = 不给模型这个工具。
 PYTHON_MODES = ("on", "ask", "off")
+
+#: 模型名里出现这些就当它能看图 (PEH_VISION=auto 时); 认不准就用 PEH_VISION=on/off 明确指定。
+VISION_HINTS = re.compile(
+    r"vl|vision|gpt-4o|gpt-4\.1|gpt-5|o[34]-|claude|gemini|glm-4v|glm-4\.[5-9]v|qvq|omni|pixtral|llava|minicpm-v|kimi-k2\.5|doubao.*vision|step-1v",
+    re.I)
 
 
 def load_dotenv(path: str | os.PathLike = ".env") -> None:
@@ -62,6 +68,7 @@ class Settings:
     workspace: Path = field(default_factory=lambda: Path.cwd() / "workspace")
     max_steps: int = 30
     python_mode: str = "ask"
+    vision_mode: str = "auto"
     allow_private_urls: bool = False
 
     searxng_url: str = ""
@@ -100,6 +107,7 @@ class Settings:
             workspace=Path(_env("PEH_WORKSPACE") or Path.cwd() / "workspace").expanduser(),
             max_steps=int(_env("PEH_MAX_STEPS", "30")),
             python_mode=py if py in PYTHON_MODES else "off",
+            vision_mode=_env("PEH_VISION", "auto").lower(),
             allow_private_urls=_env("PEH_ALLOW_PRIVATE_URLS") == "1",
             searxng_url=_env("SEARXNG_URL").rstrip("/"),
             tavily_api_key=_env("TAVILY_API_KEY"),
@@ -110,6 +118,14 @@ class Settings:
             agent_name=_env("PEH_AGENT_NAME", "PocketExpert Harness"),
         )
         return s
+
+    @property
+    def supports_vision(self) -> bool:
+        if self.vision_mode in ("on", "1", "true", "yes"):
+            return True
+        if self.vision_mode in ("off", "0", "false", "no"):
+            return False
+        return bool(VISION_HINTS.search(self.model or ""))
 
     def problems(self) -> list[str]:
         """启动前能查出来的配置问题 (空列表 = 可以跑)。"""

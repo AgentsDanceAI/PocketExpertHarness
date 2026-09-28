@@ -67,6 +67,7 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 
 ## 📰 最新动态
 
+- **2026-09-29** **v0.2.0** —— 网页端能传图片、文件、视频 (点回形针 / 粘贴 / 拖进来), 看图模型直接看图; 回答里的图表和文件直接显示、点开下载, 侧栏「工作区文件」能看全部产出; 发出去立刻读秒 (正在思考 → 第几步 → 用时); 代码块和回答一键复制; 自带 matplotlib 且中文字体配好; 命令行 `peh run -f 文件` / 聊天里 `/file 路径` 带附件。
 - **2026-09-24** 🎉 **v0.1.0 首次开源** —— 内核与口袋专家 AI 线上同一份; 网页聊天 (可以中途插话、随时停止) + 命令行; MCP (stdio / Streamable HTTP)、SKILL.md 技能、长期记忆; DeepSeek / 通义千问 / 硅基流动 / OpenAI / OpenRouter / Ollama 预设; `docker compose` 自带 SearXNG 联网搜索。
 
 ## 🚀 5 分钟跑起来
@@ -124,6 +125,7 @@ uv tool install pocketexpert-harness     # 或者 pipx install / pip install poc
 | `peh serve` | 起网页聊天 (和 Docker 方式同一个界面) |
 | `peh` | 直接在终端里聊天 |
 | `peh run "问题"` | 问一句、答完就退出, 适合写进脚本 |
+| `peh run -f 报表.xlsx "总结一下"` | 带附件问 (可以写多个 `-f`); 终端聊天里用 `/file 路径` |
 | `peh doctor` | 检查模型、搜索、MCP 有没有配好 |
 
 **联网搜索 (本机方式要自己接一个, 不接也能用, 只是不能上网搜)** —— 三选一:
@@ -163,6 +165,13 @@ Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起
 | `ollama` (本地) | `qwen2.5:7b` | 不需要 |
 
 用 `LLM_MODEL` 换模型, 用 `LLM_BASE_URL` 接任何别的兼容服务。模型越强, 多步任务越稳。
+
+## 🖼️ 图片、文件和图表
+
+- **传附件**: 网页里点输入框左边的回形针, 或者直接粘贴截图、把文件拖进来 (单个 ≤ 50MB, 一次最多 10 个)。文件存到工作区 `uploads/`, 表格、文档、代码由模型用工具去读。
+- **看图**: 模型名里带 `vl` / `vision` / `gpt-4o` / `claude` / `gemini` / `omni` 等字样时自动把图片交给它 (比如百炼的 `qwen-vl-max`、`qwen3-vl-plus`)。自动识别不准就用 `PEH_VISION=on` / `off` 强制。模型看不了图时会如实告诉你, 不会瞎编。
+- **视频、音频**: 可以传, 模型能用 `run_python` 处理文件本身 (比如截帧、转码), 但目前没有接音视频理解模型。
+- **图表和产出文件**: 让它「画一张…图」, 它用 matplotlib 画好存进工作区, 回答里直接显示; 报告、表格等文件在回答里点开或下载。侧栏「工作区文件」列出全部产出。
 
 ## 🔧 工具
 
