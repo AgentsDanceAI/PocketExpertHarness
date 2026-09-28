@@ -103,13 +103,13 @@ Install [uv](https://docs.astral.sh/uv/) (think `npx` for Python; or `pip instal
 
 ```bash
 export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...
-uvx --from git+https://github.com/AgentsDanceAI/PocketExpertHarness peh serve     # open http://127.0.0.1:8080
+uvx pocketexpert-harness serve # open http://127.0.0.1:8080
 ```
 
-The first run downloads and installs everything in a few seconds; after that it starts instantly. To keep `peh` on your PATH:
+The first run fetches it from PyPI in a few seconds; after that it starts instantly. To keep `peh` on your PATH:
 
 ```bash
-uv tool install git+https://github.com/AgentsDanceAI/PocketExpertHarness          # or: pipx install git+https://github.com/AgentsDanceAI/PocketExpertHarness
+uv tool install pocketexpert-harness     # or: pipx install / pip install pocketexpert-harness
 ```
 
 To hack on the code, clone the repo and `pip install -e .`.

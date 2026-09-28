@@ -103,13 +103,13 @@ docker compose up -d        # 第一次要构建镜像, 等几分钟
 
 ```bash
 export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...
-uvx --from git+https://github.com/AgentsDanceAI/PocketExpertHarness peh serve     # 浏览器打开 http://127.0.0.1:8080
+uvx pocketexpert-harness serve # 浏览器打开 http://127.0.0.1:8080
 ```
 
-第一次会自动下载并装好依赖 (几秒钟), 以后秒开。想长期用、以后直接敲 `peh`:
+第一次会从 PyPI 自动下载并装好依赖 (几秒钟), 以后秒开。想长期用、以后直接敲 `peh`:
 
 ```bash
-uv tool install git+https://github.com/AgentsDanceAI/PocketExpertHarness          # 或者 pipx install git+https://github.com/AgentsDanceAI/PocketExpertHarness
+uv tool install pocketexpert-harness     # 或者 pipx install / pip install pocketexpert-harness
 ```
 
 要改代码就 clone 下来 `pip install -e .`。
