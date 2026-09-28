@@ -288,9 +288,9 @@ asyncio.run(main())
 
 ## 💬 交流
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="扫码加入 PocketExpertHarness 企业微信交流群">
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="扫码加入「口袋专家AI·交流群」">
 
-- 交流群: 微信扫上面的码加入企业微信群, 部署问题、玩法、需求都可以在群里聊
+- 交流群「口袋专家AI·交流群」: 微信扫上面的码加入, 部署问题、玩法、需求都可以在群里聊
 - 用得不顺、想要新功能: 提 [issue](https://github.com/AgentsDanceAI/PocketExpertHarness/issues)
 - 关注更新: X [@AgentsDanceAI](https://x.com/AgentsDanceAI)
 - 其他事: support@agentsdance.ai

@@ -209,9 +209,9 @@ This repository is the kernel. The full product at [agentsdance.ai](https://agen
 
 ## 💬 Community
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="Scan to join the PocketExpertHarness WeChat group">
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="Scan to join the 口袋专家AI·交流群 WeChat group">
 
-- WeChat group (Chinese-speaking): scan the code above with WeChat to join
+- WeChat group「口袋专家AI·交流群」(Chinese-speaking): scan the code above with WeChat to join
 - Problems or feature requests: open an [issue](https://github.com/AgentsDanceAI/PocketExpertHarness/issues)
 - Updates: X [@AgentsDanceAI](https://x.com/AgentsDanceAI)
 - Anything else: support@agentsdance.ai
