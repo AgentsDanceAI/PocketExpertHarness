@@ -1,6 +1,6 @@
 name: publish
 
-# 打 v* 标签 → 测试 → 打包 → 发到 PyPI (可信发布, 不存任何令牌)。
+# 打 v* 标签 → 测试 → 打包 → 发到 PyPI (可信发布, 不存任何令牌) → 建同名 GitHub Release (版本号两边对齐)。
 # PyPI 那边的「待定发布者」须填: 项目 pocketexpert-harness / 所有者 AgentsDanceAI /
 # 仓库 PocketExpertHarness / 工作流 publish.yml / 环境 pypi。只用 GitHub 托管的机器。
 on:
@@ -53,3 +53,22 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: 建 GitHub Release (与 PyPI 同一个版本号, 附同一份安装包)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "PocketExpertHarness $GITHUB_REF_NAME" --generate-notes \
+            --notes "安装 / Install: \`uvx pocketexpert-harness serve\` · PyPI: https://pypi.org/project/pocketexpert-harness/$v/"
