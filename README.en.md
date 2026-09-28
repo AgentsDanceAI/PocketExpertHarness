@@ -22,6 +22,7 @@
 <p align="center">
   <a href="https://pypi.org/project/pocketexpert-harness/"><img src="https://img.shields.io/pypi/v/pocketexpert-harness?logo=pypi&logoColor=white&label=PyPI&color=3775A9" alt="PyPI"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/releases/latest"><img src="https://img.shields.io/github/v/release/AgentsDanceAI/PocketExpertHarness?logo=github&label=Release&color=24292F" alt="GitHub Release"></a>
+  <a href="#-community"><img src="https://img.shields.io/badge/WeChat-group-07C160?logo=wechat&logoColor=white" alt="WeChat group"></a>
   <img src="https://img.shields.io/badge/python-≥3.10-3776AB?logo=python&logoColor=white" alt="Python ≥3.10">
   <img src="https://img.shields.io/badge/Docker-one_command-2496ED?logo=docker&logoColor=white" alt="Docker">
   <img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP">
@@ -208,6 +209,9 @@ This repository is the kernel. The full product at [agentsdance.ai](https://agen
 
 ## 💬 Community
 
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="Scan to join the PocketExpertHarness WeChat group">
+
+- WeChat group (Chinese-speaking): scan the code above with WeChat to join
 - Problems or feature requests: open an [issue](https://github.com/AgentsDanceAI/PocketExpertHarness/issues)
 - Updates: X [@AgentsDanceAI](https://x.com/AgentsDanceAI)
 - Anything else: support@agentsdance.ai

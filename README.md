@@ -22,6 +22,7 @@
 <p align="center">
   <a href="https://pypi.org/project/pocketexpert-harness/"><img src="https://img.shields.io/pypi/v/pocketexpert-harness?logo=pypi&logoColor=white&label=PyPI&color=3775A9" alt="PyPI"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/releases/latest"><img src="https://img.shields.io/github/v/release/AgentsDanceAI/PocketExpertHarness?logo=github&label=Release&color=24292F" alt="GitHub Release"></a>
+  <a href="#-交流"><img src="https://img.shields.io/badge/微信群-扫码加入-07C160?logo=wechat&logoColor=white" alt="微信交流群"></a>
   <img src="https://img.shields.io/badge/python-≥3.10-3776AB?logo=python&logoColor=white" alt="Python ≥3.10">
   <img src="https://img.shields.io/badge/Docker-一条命令-2496ED?logo=docker&logoColor=white" alt="Docker">
   <img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP">
@@ -287,6 +288,9 @@ asyncio.run(main())
 
 ## 💬 交流
 
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="扫码加入 PocketExpertHarness 企业微信交流群">
+
+- 交流群: 微信扫上面的码加入企业微信群, 部署问题、玩法、需求都可以在群里聊
 - 用得不顺、想要新功能: 提 [issue](https://github.com/AgentsDanceAI/PocketExpertHarness/issues)
 - 关注更新: X [@AgentsDanceAI](https://x.com/AgentsDanceAI)
 - 其他事: support@agentsdance.ai
