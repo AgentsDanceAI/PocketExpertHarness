@@ -102,15 +102,33 @@ docker compose up -d        # 第一次要构建镜像, 等几分钟
 ```bash
 git clone https://github.com/AgentsDanceAI/PocketExpertHarness.git
 cd PocketExpertHarness
-pip install -e .
-export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...
-peh                   # 命令行聊天
-peh serve             # 网页聊天, http://127.0.0.1:8080
-peh run "问一句就退出"
-peh doctor            # 检查模型、搜索、MCP 配置
+pip install -e .                                   # 装好后多出一个命令: peh
+export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...    # 也可以写进当前目录的 .env 文件
+peh serve                                          # 网页聊天, 浏览器打开 http://127.0.0.1:8080
 ```
 
-本机跑时联网搜索要自己配一个: `SEARXNG_URL`、`TAVILY_API_KEY` 或 `BRAVE_API_KEY` 三选一 (不配也能用, 只是不能上网搜)。
+**`peh` 是什么**: 就是这个项目本身的命令 (PocketExpert Harness 的缩写), `pip install` 时装进系统。常用的几个:
+
+| 命令 | 做什么 |
+|---|---|
+| `peh serve` | 起网页聊天 (和 Docker 方式同一个界面) |
+| `peh` | 直接在终端里聊天 |
+| `peh run "问题"` | 问一句、答完就退出, 适合写进脚本 |
+| `peh doctor` | 检查模型、搜索、MCP 有没有配好 |
+
+**联网搜索 (本机方式要自己接一个, 不接也能用, 只是不能上网搜)** —— 三选一:
+
+- **自己起一个 SearXNG (免费, 不用 Key, 推荐)**: 需要 Docker, 用仓库里现成的配置起一个:
+  ```bash
+  docker run -d --name searxng -p 127.0.0.1:8888:8080 -e SEARXNG_SECRET=换一串随机字符 \
+    -v "$PWD/deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro" searxng/searxng
+  export SEARXNG_URL=http://127.0.0.1:8888
+  ```
+- **Tavily**: 在 [tavily.com](https://tavily.com) 注册拿 Key, `export TAVILY_API_KEY=tvly-...`
+- **Brave Search**: 在 [Brave Search API](https://brave.com/search/api/) 申请 Key, `export BRAVE_API_KEY=...`
+
+配好后跑 `peh doctor`, 「联网搜索」那一行显示 `✓ 联网搜索: searxng` (或 tavily / brave) 就对了。
+Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起好。
 
 ### 遇到问题先跑 `peh doctor`
 

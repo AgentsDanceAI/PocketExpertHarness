@@ -102,15 +102,33 @@ Open <http://127.0.0.1:8080>. Sessions, memory and workspace files live in `./da
 ```bash
 git clone https://github.com/AgentsDanceAI/PocketExpertHarness.git
 cd PocketExpertHarness
-pip install -e .
-export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...
-peh                   # terminal chat
-peh serve             # web chat at http://127.0.0.1:8080
-peh run "one-shot question"
-peh doctor            # check model, search and MCP config
+pip install -e .                                   # installs one command: peh
+export PEH_PROVIDER=deepseek LLM_API_KEY=sk-...    # or put these in a .env file in the current directory
+peh serve                                          # web chat, open http://127.0.0.1:8080
 ```
 
-For web search when running locally, set one of `SEARXNG_URL`, `TAVILY_API_KEY` or `BRAVE_API_KEY` (it works without, just offline).
+**What `peh` is**: this project's own command (short for PocketExpert Harness), installed by `pip install`. The ones you'll use:
+
+| Command | What it does |
+|---|---|
+| `peh serve` | web chat (the same UI as the Docker setup) |
+| `peh` | chat right in the terminal |
+| `peh run "question"` | ask once and exit — handy in scripts |
+| `peh doctor` | check that model, search and MCP are configured |
+
+**Web search (bring your own when running locally; without it everything works except searching the web)** — pick one:
+
+- **Run your own SearXNG (free, no key, recommended)**: needs Docker; uses the config shipped in this repo:
+  ```bash
+  docker run -d --name searxng -p 127.0.0.1:8888:8080 -e SEARXNG_SECRET=some-random-string \
+    -v "$PWD/deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro" searxng/searxng
+  export SEARXNG_URL=http://127.0.0.1:8888
+  ```
+- **Tavily**: get a key at [tavily.com](https://tavily.com), then `export TAVILY_API_KEY=tvly-...`
+- **Brave Search**: get a key from the [Brave Search API](https://brave.com/search/api/), then `export BRAVE_API_KEY=...`
+
+Then run `peh doctor`: the search line should read `✓ 联网搜索: searxng` (or tavily / brave).
+The Docker setup needs none of this — `docker compose up -d` starts SearXNG alongside.
 
 ### Something wrong? Run `peh doctor` first
 
