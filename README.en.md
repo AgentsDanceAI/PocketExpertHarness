@@ -23,10 +23,11 @@
   <a href="https://pypi.org/project/pocketexpert-harness/"><img src="https://img.shields.io/pypi/v/pocketexpert-harness?logo=pypi&logoColor=white&label=PyPI&color=3775A9" alt="PyPI"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/releases/latest"><img src="https://img.shields.io/github/v/release/AgentsDanceAI/PocketExpertHarness?logo=github&label=Release&color=24292F" alt="GitHub Release"></a>
   <a href="#-community"><img src="https://img.shields.io/badge/WeChat-group-07C160?logo=wechat&logoColor=white" alt="WeChat group"></a>
-  <img src="https://img.shields.io/badge/python-≥3.10-3776AB?logo=python&logoColor=white" alt="Python ≥3.10">
-  <img src="https://img.shields.io/badge/Docker-one_command-2496ED?logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP">
-  <img src="https://img.shields.io/badge/skills-SKILL.md-8B5CF6" alt="SKILL.md">
+  <a href="#1-run-with-docker-recommended-includes-web-search"><img src="https://img.shields.io/badge/Docker-one_command-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
+  <a href="#-mcp"><img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP"></a>
+  <a href="#-skills"><img src="https://img.shields.io/badge/skills-SKILL.md-8B5CF6" alt="SKILL.md"></a>
+  <a href="https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441"><img src="https://img.shields.io/badge/App_Store-PocketExpert_AI-0D96F6?logo=appstore&logoColor=white" alt="App Store"></a>
+  <a href="#-pocketexpert-ai"><img src="https://img.shields.io/badge/WeChat-Mini_Program-07C160?logo=wechat&logoColor=white" alt="WeChat Mini Program"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml"><img src="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://x.com/AgentsDanceAI"><img src="https://img.shields.io/badge/X-@AgentsDanceAI-000000?logo=x&logoColor=white" alt="X"></a>
 </p>
@@ -212,6 +213,10 @@ The kernel has exactly three ports: call the model, run a tool, assemble the sys
 ## 🧪 PocketExpert AI
 
 This repository is the kernel. The full product at [agentsdance.ai](https://agentsdance.ai) adds 250+ domain experts, multi-expert groups, an understanding layer and layered prompts, one-click slides / web pages / videos, and ready-to-use apps with no model setup: web, [iPhone / iPad](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441), Android, the WeChat Mini Program and desktop, all on one account.
+
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="PocketExpert AI WeChat Mini Program code">
+
+Scan with WeChat to use the Mini Program — nothing to install, no key to set up.
 
 ## 💬 Community
 

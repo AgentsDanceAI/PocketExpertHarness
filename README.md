@@ -23,10 +23,11 @@
   <a href="https://pypi.org/project/pocketexpert-harness/"><img src="https://img.shields.io/pypi/v/pocketexpert-harness?logo=pypi&logoColor=white&label=PyPI&color=3775A9" alt="PyPI"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/releases/latest"><img src="https://img.shields.io/github/v/release/AgentsDanceAI/PocketExpertHarness?logo=github&label=Release&color=24292F" alt="GitHub Release"></a>
   <a href="#-交流"><img src="https://img.shields.io/badge/微信群-扫码加入-07C160?logo=wechat&logoColor=white" alt="微信交流群"></a>
-  <img src="https://img.shields.io/badge/python-≥3.10-3776AB?logo=python&logoColor=white" alt="Python ≥3.10">
-  <img src="https://img.shields.io/badge/Docker-一条命令-2496ED?logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP">
-  <img src="https://img.shields.io/badge/技能-SKILL.md-8B5CF6" alt="SKILL.md">
+  <a href="#1-用-docker-跑-推荐-自带联网搜索"><img src="https://img.shields.io/badge/Docker-一条命令-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
+  <a href="#-接入-mcp"><img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP"></a>
+  <a href="#-技能"><img src="https://img.shields.io/badge/技能-SKILL.md-8B5CF6" alt="SKILL.md"></a>
+  <a href="https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441"><img src="https://img.shields.io/badge/App_Store-口袋专家_AI-0D96F6?logo=appstore&logoColor=white" alt="App Store"></a>
+  <a href="#-和口袋专家-ai-的关系"><img src="https://img.shields.io/badge/微信小程序-扫码就用-07C160?logo=wechat&logoColor=white" alt="微信小程序"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml"><img src="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://x.com/AgentsDanceAI"><img src="https://img.shields.io/badge/X-@AgentsDanceAI-000000?logo=x&logoColor=white" alt="X"></a>
 </p>
@@ -294,6 +295,10 @@ asyncio.run(main())
 - 先弄明白用户要什么的理解层、分层提示词
 - 一键出 PPT、网页、视频
 - 开箱即用, 不用自己配模型和 Key: 网页、[iPhone / iPad App](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441)、Android、微信小程序和电脑客户端同一个账号
+
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="口袋专家 AI 微信小程序码">
+
+微信扫上面的小程序码, 不用下载、不用配 Key 就能用。
 
 ## 💬 交流
 
