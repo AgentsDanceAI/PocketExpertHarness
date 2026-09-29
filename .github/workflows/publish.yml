@@ -1,6 +1,7 @@
 name: publish
 
-# 打 v* 标签 → 测试 → 打包 → 发到 PyPI (可信发布, 不存任何令牌) → 建同名 GitHub Release (版本号两边对齐)。
+# 打 v* 标签 → 查发版说明 + 测试 → 打包 → 发到 PyPI (可信发布, 不存任何令牌) → 建同名 GitHub Release (版本号两边对齐)。
+# 打标签前先写 .github/release-notes/<标签>.md, 格式见 scripts/release_notes.py (与口袋专家 AI 的 Release 同一套)。
 # PyPI 那边的「待定发布者」须填: 项目 pocketexpert-harness / 所有者 AgentsDanceAI /
 # 仓库 PocketExpertHarness / 工作流 publish.yml / 环境 pypi。只用 GitHub 托管的机器。
 on:
@@ -23,6 +24,8 @@ jobs:
           v=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           i=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('pocketexpert_harness/__init__.py').read()).group(1))")
           [ "v$v" = "$GITHUB_REF_NAME" ] && [ "$v" = "$i" ] || { echo "::error::标签 $GITHUB_REF_NAME / pyproject $v / __init__ $i 不一致"; exit 1; }
+      - name: 发版说明要按格式写好 (.github/release-notes/<标签>.md), 不然不发
+        run: python scripts/release_notes.py check "$GITHUB_REF_NAME"
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest -q
@@ -60,15 +63,15 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-      - name: 建 GitHub Release (与 PyPI 同一个版本号, 附同一份安装包)
+      - name: 建 GitHub Release (标题和正文取自 .github/release-notes/<标签>.md, 附同一份安装包)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          v="${GITHUB_REF_NAME#v}"
+          title=$(python3 scripts/release_notes.py render "$GITHUB_REF_NAME" "$RUNNER_TEMP/notes.md")
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title "PocketExpertHarness $GITHUB_REF_NAME" --generate-notes \
-            --notes "安装 / Install: \`uvx pocketexpert-harness serve\` · PyPI: https://pypi.org/project/pocketexpert-harness/$v/"
+            --title "$title" --notes-file "$RUNNER_TEMP/notes.md"
