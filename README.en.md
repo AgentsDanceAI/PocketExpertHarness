@@ -217,28 +217,28 @@ This repository is the kernel. The full product, [PocketExpert AI](https://agent
   <tr>
     <td align="center" width="176">
       <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="140" alt="PocketExpert AI WeChat Mini Program code"><br>
-      <b>WeChat Mini Program</b><br>
-      <sub>Scan in WeChat, nothing to install</sub>
+      <b>WeChat</b><br>
+      <sub>Mini Program · scan</sub>
     </td>
     <td align="center" width="176">
       <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="140" alt="PocketExpert AI iPhone / iPad download QR code"><br>
       <b>iPhone / iPad</b><br>
-      <sub>Scan with the camera → App Store</sub>
+      <sub>Scan → App Store</sub>
     </td>
     <td align="center" width="176">
       <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="140" alt="PocketExpert AI Android download QR code"><br>
       <b>Android</b><br>
-      <sub>Scan to download the APK</sub>
+      <sub>Scan → APK</sub>
     </td>
     <td align="center" width="176">
       <a href="https://agentsdance.ai/downloads/AgentsDance-mac-arm64.dmg"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-mac.png" width="140" alt="Download PocketExpert AI for Mac (Apple Silicon)"></a><br>
       <b>Mac</b><br>
-      <sub>Apple Silicon · click to download</sub>
+      <sub>Apple Silicon · download</sub>
     </td>
     <td align="center" width="176">
       <a href="https://agentsdance.ai/downloads/AgentsDance-win-x64.zip"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-windows.png" width="140" alt="Download PocketExpert AI for Windows (x64)"></a><br>
       <b>Windows</b><br>
-      <sub>Windows 10/11 · click to download</sub>
+      <sub>x64 · download</sub>
     </td>
   </tr>
 </table>

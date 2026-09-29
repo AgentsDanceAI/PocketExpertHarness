@@ -315,7 +315,7 @@ asyncio.run(main())
     <td align="center" width="176">
       <a href="https://agentsdance.ai/downloads/AgentsDance-win-x64.zip"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-windows.png" width="140" alt="下载口袋专家 AI Windows 版 (x64)"></a><br>
       <b>Windows</b><br>
-      <sub>Windows 10/11 · 点一下下载</sub>
+      <sub>x64 · 点一下下载</sub>
     </td>
   </tr>
 </table>
