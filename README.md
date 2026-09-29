@@ -288,29 +288,39 @@ asyncio.run(main())
 
 ## 🧪 和口袋专家 AI 的关系
 
-这里开源的是**内核**。完整产品 [口袋专家 AI](https://agentsdance.ai) 在同一个引擎上还有 250+ 位行业专家和多位专家一起干活的专家群, 一键出 PPT、网页、视频, 不用自己配模型和 Key。拿手机扫码就能用:
+这里开源的是**内核**。完整产品 [口袋专家 AI](https://agentsdance.ai) 在同一个引擎上还有 250+ 位行业专家和多位专家一起干活的专家群, 一键出 PPT、网页、视频, 不用自己配模型和 Key。手机扫码, 电脑点一下就能用:
 
 <table align="center">
   <tr>
-    <td align="center" width="200">
-      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="口袋专家 AI 微信小程序码"><br>
+    <td align="center" width="176">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="140" alt="口袋专家 AI 微信小程序码"><br>
       <b>微信小程序</b><br>
       <sub>微信扫一扫, 不用下载</sub>
     </td>
-    <td align="center" width="200">
-      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="160" alt="口袋专家 AI iPhone / iPad 下载二维码"><br>
+    <td align="center" width="176">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="140" alt="口袋专家 AI iPhone / iPad 下载二维码"><br>
       <b>iPhone / iPad</b><br>
       <sub>相机扫码, 跳到 App Store</sub>
     </td>
-    <td align="center" width="200">
-      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="160" alt="口袋专家 AI Android 下载二维码"><br>
+    <td align="center" width="176">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="140" alt="口袋专家 AI Android 下载二维码"><br>
       <b>Android</b><br>
       <sub>扫码直接下载安装包</sub>
+    </td>
+    <td align="center" width="176">
+      <a href="https://agentsdance.ai/downloads/AgentsDance-mac-arm64.dmg"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-mac.png" width="140" alt="下载口袋专家 AI Mac 版 (Apple 芯片)"></a><br>
+      <b>Mac</b><br>
+      <sub>Apple 芯片 · 点一下下载</sub>
+    </td>
+    <td align="center" width="176">
+      <a href="https://agentsdance.ai/downloads/AgentsDance-win-x64.zip"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-windows.png" width="140" alt="下载口袋专家 AI Windows 版 (x64)"></a><br>
+      <b>Windows</b><br>
+      <sub>Windows 10/11 · 点一下下载</sub>
     </td>
   </tr>
 </table>
 
-<p align="center">电脑上直接打开 <a href="https://agentsdance.ai">agentsdance.ai</a> · Mac / Windows 桌面版在 <a href="https://agentsdance.ai/download">下载页</a> · 各端同一个账号</p>
+<p align="center">电脑上也可以直接打开 <a href="https://agentsdance.ai">agentsdance.ai</a> · Intel 芯片的 Mac、Windows ARM 版在 <a href="https://agentsdance.ai/download">下载页</a> · 各端同一个账号</p>
 
 ## 💬 交流
 

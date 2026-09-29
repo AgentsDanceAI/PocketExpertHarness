@@ -211,29 +211,39 @@ The kernel has exactly three ports: call the model, run a tool, assemble the sys
 
 ## 🧪 PocketExpert AI
 
-This repository is the kernel. The full product, [PocketExpert AI](https://agentsdance.ai), runs on the same engine and adds 250+ domain experts, multi-expert groups, and one-click slides / web pages / videos — no model or key setup. Scan with your phone:
+This repository is the kernel. The full product, [PocketExpert AI](https://agentsdance.ai), runs on the same engine and adds 250+ domain experts, multi-expert groups, and one-click slides / web pages / videos — no model or key setup. Scan with your phone, or click to download on your computer:
 
 <table align="center">
   <tr>
-    <td align="center" width="200">
-      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="PocketExpert AI WeChat Mini Program code"><br>
+    <td align="center" width="176">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="140" alt="PocketExpert AI WeChat Mini Program code"><br>
       <b>WeChat Mini Program</b><br>
       <sub>Scan in WeChat, nothing to install</sub>
     </td>
-    <td align="center" width="200">
-      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="160" alt="PocketExpert AI iPhone / iPad download QR code"><br>
+    <td align="center" width="176">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="140" alt="PocketExpert AI iPhone / iPad download QR code"><br>
       <b>iPhone / iPad</b><br>
       <sub>Scan with the camera → App Store</sub>
     </td>
-    <td align="center" width="200">
-      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="160" alt="PocketExpert AI Android download QR code"><br>
+    <td align="center" width="176">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="140" alt="PocketExpert AI Android download QR code"><br>
       <b>Android</b><br>
       <sub>Scan to download the APK</sub>
+    </td>
+    <td align="center" width="176">
+      <a href="https://agentsdance.ai/downloads/AgentsDance-mac-arm64.dmg"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-mac.png" width="140" alt="Download PocketExpert AI for Mac (Apple Silicon)"></a><br>
+      <b>Mac</b><br>
+      <sub>Apple Silicon · click to download</sub>
+    </td>
+    <td align="center" width="176">
+      <a href="https://agentsdance.ai/downloads/AgentsDance-win-x64.zip"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/dl-windows.png" width="140" alt="Download PocketExpert AI for Windows (x64)"></a><br>
+      <b>Windows</b><br>
+      <sub>Windows 10/11 · click to download</sub>
     </td>
   </tr>
 </table>
 
-<p align="center">On a computer, open <a href="https://agentsdance.ai">agentsdance.ai</a> · Mac / Windows desktop apps on the <a href="https://agentsdance.ai/download">download page</a> · Android also on <a href="https://play.google.com/store/apps/details?id=ai.agentsdance.mobile">Google Play</a> · one account everywhere</p>
+<p align="center">Or just open <a href="https://agentsdance.ai">agentsdance.ai</a> in a browser · Intel Mac and Windows ARM builds on the <a href="https://agentsdance.ai/download">download page</a> · Android also on <a href="https://play.google.com/store/apps/details?id=ai.agentsdance.mobile">Google Play</a> · one account everywhere</p>
 
 ## 💬 Community
 
