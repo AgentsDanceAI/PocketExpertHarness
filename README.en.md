@@ -26,8 +26,7 @@
   <a href="#1-run-with-docker-recommended-includes-web-search"><img src="https://img.shields.io/badge/Docker-one_command-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="#-mcp"><img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP"></a>
   <a href="#-skills"><img src="https://img.shields.io/badge/skills-SKILL.md-8B5CF6" alt="SKILL.md"></a>
-  <a href="https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441"><img src="https://img.shields.io/badge/App_Store-PocketExpert_AI-0D96F6?logo=appstore&logoColor=white" alt="App Store"></a>
-  <a href="#-pocketexpert-ai"><img src="https://img.shields.io/badge/WeChat-Mini_Program-07C160?logo=wechat&logoColor=white" alt="WeChat Mini Program"></a>
+  <a href="#-pocketexpert-ai"><img src="https://img.shields.io/badge/PocketExpert_AI-scan_to_get_the_app-0D96F6" alt="PocketExpert AI-scan to get the app"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml"><img src="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://x.com/AgentsDanceAI"><img src="https://img.shields.io/badge/X-@AgentsDanceAI-000000?logo=x&logoColor=white" alt="X"></a>
 </p>
@@ -212,17 +211,29 @@ The kernel has exactly three ports: call the model, run a tool, assemble the sys
 
 ## 🧪 PocketExpert AI
 
-This repository is the kernel. The full product at [agentsdance.ai](https://agentsdance.ai) adds 250+ domain experts, multi-expert groups, an understanding layer and layered prompts, and one-click slides / web pages / videos — ready to use with no model or key setup, on one account everywhere:
+This repository is the kernel. The full product, [PocketExpert AI](https://agentsdance.ai), runs on the same engine and adds 250+ domain experts, multi-expert groups, and one-click slides / web pages / videos — no model or key setup. Scan with your phone:
 
-| Where | Get it |
-|---|---|
-| Web | Open [agentsdance.ai](https://agentsdance.ai) — try it without signing up |
-| iPhone / iPad | [App Store](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441) |
-| Android | [Google Play](https://play.google.com/store/apps/details?id=ai.agentsdance.mobile) · or [download the APK](https://agentsdance.ai/downloads/AgentsDance-android.apk) directly |
-| Mac / Windows desktop | [Download page](https://agentsdance.ai/download) (Apple Silicon / Intel Mac, Windows x64 / ARM) |
-| WeChat Mini Program | Scan the code below with WeChat — nothing to install |
+<table align="center">
+  <tr>
+    <td align="center" width="200">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="PocketExpert AI WeChat Mini Program code"><br>
+      <b>WeChat Mini Program</b><br>
+      <sub>Scan in WeChat, nothing to install</sub>
+    </td>
+    <td align="center" width="200">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="160" alt="PocketExpert AI iPhone / iPad download QR code"><br>
+      <b>iPhone / iPad</b><br>
+      <sub>Scan with the camera → App Store</sub>
+    </td>
+    <td align="center" width="200">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="160" alt="PocketExpert AI Android download QR code"><br>
+      <b>Android</b><br>
+      <sub>Scan to download the APK</sub>
+    </td>
+  </tr>
+</table>
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="PocketExpert AI WeChat Mini Program code">
+<p align="center">On a computer, open <a href="https://agentsdance.ai">agentsdance.ai</a> · Mac / Windows desktop apps on the <a href="https://agentsdance.ai/download">download page</a> · Android also on <a href="https://play.google.com/store/apps/details?id=ai.agentsdance.mobile">Google Play</a> · one account everywhere</p>
 
 ## 💬 Community
 

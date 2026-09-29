@@ -26,8 +26,7 @@
   <a href="#1-用-docker-跑-推荐-自带联网搜索"><img src="https://img.shields.io/badge/Docker-一条命令-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="#-接入-mcp"><img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP"></a>
   <a href="#-技能"><img src="https://img.shields.io/badge/技能-SKILL.md-8B5CF6" alt="SKILL.md"></a>
-  <a href="https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441"><img src="https://img.shields.io/badge/App_Store-口袋专家_AI-0D96F6?logo=appstore&logoColor=white" alt="App Store"></a>
-  <a href="#-和口袋专家-ai-的关系"><img src="https://img.shields.io/badge/微信小程序-扫码就用-07C160?logo=wechat&logoColor=white" alt="微信小程序"></a>
+  <a href="#-和口袋专家-ai-的关系"><img src="https://img.shields.io/badge/口袋专家_AI-手机扫码下载-0D96F6" alt="口袋专家 AI-手机扫码下载"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml"><img src="https://github.com/AgentsDanceAI/PocketExpertHarness/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://x.com/AgentsDanceAI"><img src="https://img.shields.io/badge/X-@AgentsDanceAI-000000?logo=x&logoColor=white" alt="X"></a>
 </p>
@@ -289,22 +288,29 @@ asyncio.run(main())
 
 ## 🧪 和口袋专家 AI 的关系
 
-这里开源的是**内核**。完整产品 [口袋专家 AI](https://agentsdance.ai) 在同一个引擎上还有:
+这里开源的是**内核**。完整产品 [口袋专家 AI](https://agentsdance.ai) 在同一个引擎上还有 250+ 位行业专家和多位专家一起干活的专家群, 一键出 PPT、网页、视频, 不用自己配模型和 Key。拿手机扫码就能用:
 
-- 250+ 位行业专家, 以及多位专家一起干活的专家群
-- 先弄明白用户要什么的理解层、分层提示词
-- 一键出 PPT、网页、视频
-- 开箱即用, 不用自己配模型和 Key, 各端同一个账号
+<table align="center">
+  <tr>
+    <td align="center" width="200">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="口袋专家 AI 微信小程序码"><br>
+      <b>微信小程序</b><br>
+      <sub>微信扫一扫, 不用下载</sub>
+    </td>
+    <td align="center" width="200">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-ios.png" width="160" alt="口袋专家 AI iPhone / iPad 下载二维码"><br>
+      <b>iPhone / iPad</b><br>
+      <sub>相机扫码, 跳到 App Store</sub>
+    </td>
+    <td align="center" width="200">
+      <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/qr-android.png" width="160" alt="口袋专家 AI Android 下载二维码"><br>
+      <b>Android</b><br>
+      <sub>扫码直接下载安装包</sub>
+    </td>
+  </tr>
+</table>
 
-| 在哪用 | 怎么装 |
-|---|---|
-| 网页 | 打开 [agentsdance.ai](https://agentsdance.ai) 就能用, 免注册体验 |
-| iPhone / iPad | [App Store](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441) |
-| Android | [Google Play](https://play.google.com/store/apps/details?id=ai.agentsdance.mobile) · 国内网络 [直接下载 APK](https://agentsdance.ai/downloads/AgentsDance-android.apk) |
-| Mac / Windows 桌面版 | [下载页](https://agentsdance.ai/download) (Mac 分 Apple 芯片 / Intel, Windows 分 x64 / ARM) |
-| 微信小程序 | 微信扫下面的小程序码, 不用下载 |
-
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="口袋专家 AI 微信小程序码">
+<p align="center">电脑上直接打开 <a href="https://agentsdance.ai">agentsdance.ai</a> · Mac / Windows 桌面版在 <a href="https://agentsdance.ai/download">下载页</a> · 各端同一个账号</p>
 
 ## 💬 交流
 
