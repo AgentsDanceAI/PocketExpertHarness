@@ -294,11 +294,17 @@ asyncio.run(main())
 - 250+ 位行业专家, 以及多位专家一起干活的专家群
 - 先弄明白用户要什么的理解层、分层提示词
 - 一键出 PPT、网页、视频
-- 开箱即用, 不用自己配模型和 Key: 网页、[iPhone / iPad App](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441)、Android、微信小程序和电脑客户端同一个账号
+- 开箱即用, 不用自己配模型和 Key, 各端同一个账号
+
+| 在哪用 | 怎么装 |
+|---|---|
+| 网页 | 打开 [agentsdance.ai](https://agentsdance.ai) 就能用, 免注册体验 |
+| iPhone / iPad | [App Store](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441) |
+| Android | [Google Play](https://play.google.com/store/apps/details?id=ai.agentsdance.mobile) · 国内网络 [直接下载 APK](https://agentsdance.ai/downloads/AgentsDance-android.apk) |
+| Mac / Windows 桌面版 | [下载页](https://agentsdance.ai/download) (Mac 分 Apple 芯片 / Intel, Windows 分 x64 / ARM) |
+| 微信小程序 | 微信扫下面的小程序码, 不用下载 |
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="口袋专家 AI 微信小程序码">
-
-微信扫上面的小程序码, 不用下载、不用配 Key 就能用。
 
 ## 💬 交流
 

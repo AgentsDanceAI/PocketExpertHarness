@@ -212,11 +212,17 @@ The kernel has exactly three ports: call the model, run a tool, assemble the sys
 
 ## 🧪 PocketExpert AI
 
-This repository is the kernel. The full product at [agentsdance.ai](https://agentsdance.ai) adds 250+ domain experts, multi-expert groups, an understanding layer and layered prompts, one-click slides / web pages / videos, and ready-to-use apps with no model setup: web, [iPhone / iPad](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441), Android, the WeChat Mini Program and desktop, all on one account.
+This repository is the kernel. The full product at [agentsdance.ai](https://agentsdance.ai) adds 250+ domain experts, multi-expert groups, an understanding layer and layered prompts, and one-click slides / web pages / videos — ready to use with no model or key setup, on one account everywhere:
+
+| Where | Get it |
+|---|---|
+| Web | Open [agentsdance.ai](https://agentsdance.ai) — try it without signing up |
+| iPhone / iPad | [App Store](https://apps.apple.com/app/%E5%8F%A3%E8%A2%8B%E4%B8%93%E5%AE%B6ai/id6801482441) |
+| Android | [Google Play](https://play.google.com/store/apps/details?id=ai.agentsdance.mobile) · or [download the APK](https://agentsdance.ai/downloads/AgentsDance-android.apk) directly |
+| Mac / Windows desktop | [Download page](https://agentsdance.ai/download) (Apple Silicon / Intel Mac, Windows x64 / ARM) |
+| WeChat Mini Program | Scan the code below with WeChat — nothing to install |
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/miniprogram.jpg" width="160" alt="PocketExpert AI WeChat Mini Program code">
-
-Scan with WeChat to use the Mini Program — nothing to install, no key to set up.
 
 ## 💬 Community
 
