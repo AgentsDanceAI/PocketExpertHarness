@@ -22,7 +22,7 @@
 <p align="center">
   <a href="https://pypi.org/project/pocketexpert-harness/"><img src="https://img.shields.io/pypi/v/pocketexpert-harness?logo=pypi&logoColor=white&label=PyPI&color=3775A9" alt="PyPI"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/releases/latest"><img src="https://img.shields.io/github/v/release/AgentsDanceAI/PocketExpertHarness?logo=github&label=Release&color=24292F" alt="GitHub Release"></a>
-  <a href="#-交流"><img src="https://img.shields.io/badge/微信群-扫码加入-07C160?logo=wechat&logoColor=white" alt="微信交流群"></a>
+  <a href="#-交流"><img src="https://img.shields.io/badge/交流群-微信_·_小红书-07C160?logo=wechat&logoColor=white" alt="交流群: 微信 · 小红书"></a>
   <a href="#1-用-docker-跑-推荐-自带联网搜索"><img src="https://img.shields.io/badge/Docker-一条命令-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="#-接入-mcp"><img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP"></a>
   <a href="#-技能"><img src="https://img.shields.io/badge/技能-SKILL.md-8B5CF6" alt="SKILL.md"></a>
@@ -324,9 +324,15 @@ asyncio.run(main())
 
 ## 💬 交流
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="扫码加入「口袋专家AI·交流群」">
+<!-- 小红书群二维码 28 天有效, 当前这张 2026-10-27 过期, 到期前换 docs/xhs-group.png; 微信群码是永久的 -->
+<table>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="200" alt="扫码加入「口袋专家AI·交流群」微信群"><br><b>微信群</b><br><sub>微信扫码</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/xhs-group.png" width="200" alt="扫码加入「口袋专家AI交流群」小红书群"><br><b>小红书群</b><br><sub>打开小红书扫码</sub></td>
+  </tr>
+</table>
 
-- 交流群「口袋专家AI·交流群」: 微信扫上面的码加入, 部署问题、玩法、需求都可以在群里聊
+- 交流群: 微信群、小红书群都有, 扫上面对应的码加入 (小红书群要用小红书 App 扫), 部署问题、玩法、需求都可以在群里聊
 - 用得不顺、想要新功能: 提 [issue](https://github.com/AgentsDanceAI/PocketExpertHarness/issues)
 - 关注更新: X [@AgentsDanceAI](https://x.com/AgentsDanceAI)
 - 其他事: support@agentsdance.ai

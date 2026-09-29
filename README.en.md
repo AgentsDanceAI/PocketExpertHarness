@@ -22,7 +22,7 @@
 <p align="center">
   <a href="https://pypi.org/project/pocketexpert-harness/"><img src="https://img.shields.io/pypi/v/pocketexpert-harness?logo=pypi&logoColor=white&label=PyPI&color=3775A9" alt="PyPI"></a>
   <a href="https://github.com/AgentsDanceAI/PocketExpertHarness/releases/latest"><img src="https://img.shields.io/github/v/release/AgentsDanceAI/PocketExpertHarness?logo=github&label=Release&color=24292F" alt="GitHub Release"></a>
-  <a href="#-community"><img src="https://img.shields.io/badge/WeChat-group-07C160?logo=wechat&logoColor=white" alt="WeChat group"></a>
+  <a href="#-community"><img src="https://img.shields.io/badge/groups-WeChat_·_Xiaohongshu-07C160?logo=wechat&logoColor=white" alt="WeChat and Xiaohongshu groups"></a>
   <a href="#1-run-with-docker-recommended-includes-web-search"><img src="https://img.shields.io/badge/Docker-one_command-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="#-mcp"><img src="https://img.shields.io/badge/MCP-stdio_·_HTTP-111111" alt="MCP"></a>
   <a href="#-skills"><img src="https://img.shields.io/badge/skills-SKILL.md-8B5CF6" alt="SKILL.md"></a>
@@ -247,9 +247,15 @@ This repository is the kernel. The full product, [PocketExpert AI](https://agent
 
 ## 💬 Community
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="220" alt="Scan to join the 口袋专家AI·交流群 WeChat group">
+<!-- 小红书群二维码 28 天有效, 当前这张 2026-10-27 过期, 到期前换 docs/xhs-group.png; 微信群码是永久的 -->
+<table>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/wecom-group.png" width="200" alt="Scan to join the 口袋专家AI·交流群 WeChat group"><br><b>WeChat group</b><br><sub>Scan with WeChat</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/xhs-group.png" width="200" alt="Scan to join the 口袋专家AI交流群 Xiaohongshu group"><br><b>Xiaohongshu group</b><br><sub>Scan with the Xiaohongshu app</sub></td>
+  </tr>
+</table>
 
-- WeChat group「口袋专家AI·交流群」(Chinese-speaking): scan the code above with WeChat to join
+- Groups (Chinese-speaking): a WeChat group and a Xiaohongshu (RED) group — scan the matching code above; the Xiaohongshu one needs the Xiaohongshu app
 - Problems or feature requests: open an [issue](https://github.com/AgentsDanceAI/PocketExpertHarness/issues)
 - Updates: X [@AgentsDanceAI](https://x.com/AgentsDanceAI)
 - Anything else: support@agentsdance.ai
