@@ -334,9 +334,9 @@ class AnswerDelta:
 
 #: 「开始回答」工具 (2026-10-04): 过程说明、思考、正文必须分得开, 而且不许撤回已经给用户看过的字。
 #: 接口里调工具前的说明与最终答案都是 content, 只差后面跟不跟工具调用 —— 这一步结束才知道。
-#: 所以把「写答案」做成结构上没有工具的一步: 每步 tool_choice=required (要么真工具, 要么 respond), 调了 respond
-#: 就再发一次**不带工具**的调用, 那次的 content 必然是正文, 第一个字就进正文; 调工具前写的字必然是过程, 进思考区。
-#: 不猜、不撤回。两家主力模型的网关都认 required; respond 这一步约 1 秒, 之后答案首字不到 1 秒。
+#: 所以把「写答案」做成结构上没有工具的一步: 模型调 respond 之后再发一次**不带工具**的调用, 那次的 content 必然是正文,
+#: 第一个字就进正文; 调工具前写的字必然是过程, 进思考区; 没调 respond 直接写的裸正文, 这一步结束时就是答案 (老路, 慢但不错)。
+#: 三条路都不猜、不撤回。respond 这一步约 1 秒, 之后答案首字不到 1 秒。
 RESPOND_TOOL = "respond"
 RESPOND_RESULT = "好, 现在直接写给用户的回答 (这一步没有工具)。"
 
@@ -585,8 +585,10 @@ class ReactLoop:
         log.log_header({"model": str(route.get("model") or ""), "url": str(route.get("url") or ""),
                         "system_chars": len(system), "tools": len(self.tool_names)})
         messages = log.derive_messages(system)
-        # respond 协议 (见 RESPOND_TOOL): 这个回合有 respond 就每步强制调工具; 没有 (成员幕) 照旧 auto
-        call_route = {**route, "tool_mode": "required"} if RESPOND_TOOL in self.tool_names else route
+        # respond 协议 (见 RESPOND_TOOL): 不强制 (2026-10-04 二改) —— 模型自己选: 调 respond 走答案阶段 (正文即时流出);
+        # 直接写裸正文就是答案, 这一步结束才定 (慢一截但不会错)。曾用 tool_choice=required 逼它每步调工具, 上线实测
+        # 把它往多用工具推 (带图的 3 次有 2 次先去联网, 问答题一次请了两位专家); 速度不该用改变它的决定来换。
+        call_route = route
         attempt = 0
         res: Optional[dict] = None
         while True:
