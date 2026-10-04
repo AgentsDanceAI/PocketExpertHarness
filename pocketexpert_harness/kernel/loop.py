@@ -325,6 +325,13 @@ class StepEnd:
 
 
 @dataclass
+class ThinkingDelta:
+    """模型自己的思考增量 (reasoning_content, 思考开着时才有): 引擎按无事件名的 {thinking} 帧发给前端, 四端都当可见思考流。"""
+    text: str = ""
+    n: int = 0
+
+
+@dataclass
 class AnswerDelta:
     """答案阶段的正文增量 (2026-10-04 respond 协议): 模型调过 respond 之后、不带工具的那次调用吐出来的字 ——
     结构上必然是正文, 引擎直接发进正文 (answer + content 帧), 不再先停在思考区。"""
@@ -544,22 +551,30 @@ class ReactLoop:
         ctx, log = self.ctx, self.log
         messages = log.derive_messages(system)
         deltas: list[str] = []
+        thinks: list[str] = []
         res: Optional[dict] = None
         failure: Optional[BaseException] = None
         try:
-            async for kind, val in heartbeat(self.llm(messages, {**route, "tool_mode": "answer"}, deltas.append),
+            async for kind, val in heartbeat(self.llm(messages, {**route, "tool_mode": "answer", "on_thinking": thinks.append}, deltas.append),
                                              tick=self.tick, ping_every=self.ping_every):
                 if kind == "done":
                     res = val
-                elif deltas:
-                    yield AnswerDelta(text="".join(deltas), n=step)
-                    deltas.clear()
+                else:
+                    if thinks:
+                        yield ThinkingDelta(text="".join(thinks), n=step)
+                        thinks.clear()
+                    if deltas:
+                        yield AnswerDelta(text="".join(deltas), n=step)
+                        deltas.clear()
                 if kind == "ping":
                     yield PING
         except (GeneratorExit, asyncio.CancelledError):
             raise
         except Exception as e:      # noqa: BLE001
             failure = e
+        if thinks:
+            yield ThinkingDelta(text="".join(thinks), n=step)
+            thinks.clear()
         if deltas:
             yield AnswerDelta(text="".join(deltas), n=step)
             deltas.clear()
@@ -594,21 +609,29 @@ class ReactLoop:
         while True:
             attempt += 1
             deltas: list[str] = []
+            thinks: list[str] = []
             failure: Optional[BaseException] = None
             try:
-                async for kind, val in heartbeat(self.llm(messages, call_route, deltas.append),
+                async for kind, val in heartbeat(self.llm(messages, {**call_route, "on_thinking": thinks.append}, deltas.append),
                                                  tick=self.tick, ping_every=self.ping_every):
                     if kind == "done":
                         res = val
-                    elif deltas:
-                        yield {"event": "assistant_delta", "n": step, "text": "".join(deltas)}
-                        deltas.clear()
+                    else:
+                        if thinks:
+                            yield ThinkingDelta(text="".join(thinks), n=step)
+                            thinks.clear()
+                        if deltas:
+                            yield {"event": "assistant_delta", "n": step, "text": "".join(deltas)}
+                            deltas.clear()
                     if kind == "ping":
                         yield PING
             except (GeneratorExit, asyncio.CancelledError):
                 raise
             except Exception as e:      # noqa: BLE001 — 失败交给 request-error 瀑布定重试
                 failure = e
+            if thinks:
+                yield ThinkingDelta(text="".join(thinks), n=step)
+                thinks.clear()
             if deltas:
                 yield {"event": "assistant_delta", "n": step, "text": "".join(deltas)}
                 deltas.clear()
