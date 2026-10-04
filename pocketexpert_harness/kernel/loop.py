@@ -325,6 +325,23 @@ class StepEnd:
 
 
 @dataclass
+class AnswerDelta:
+    """答案阶段的正文增量 (2026-10-04 respond 协议): 模型调过 respond 之后、不带工具的那次调用吐出来的字 ——
+    结构上必然是正文, 引擎直接发进正文 (answer + content 帧), 不再先停在思考区。"""
+    text: str = ""
+    n: int = 0
+
+
+#: 「开始回答」工具 (2026-10-04): 过程说明、思考、正文必须分得开, 而且不许撤回已经给用户看过的字。
+#: 接口里调工具前的说明与最终答案都是 content, 只差后面跟不跟工具调用 —— 这一步结束才知道。
+#: 所以把「写答案」做成结构上没有工具的一步: 每步 tool_choice=required (要么真工具, 要么 respond), 调了 respond
+#: 就再发一次**不带工具**的调用, 那次的 content 必然是正文, 第一个字就进正文; 调工具前写的字必然是过程, 进思考区。
+#: 不猜、不撤回。两家主力模型的网关都认 required; respond 这一步约 1 秒, 之后答案首字不到 1 秒。
+RESPOND_TOOL = "respond"
+RESPOND_RESULT = "好, 现在直接写给用户的回答 (这一步没有工具)。"
+
+
+@dataclass
 class TurnEnd:
     kind: str = ""                       # completed | max_tokens | blocked | aborted | error
     reason: str = ""
@@ -522,6 +539,44 @@ class ReactLoop:
                     logger.warning("[loop] task=%s 摘要式压缩失败, 退回机械截短", self.ctx.task_id, exc_info=True)
         log.compact()
 
+    async def _answer_phase(self, step: int, system: str, route: dict) -> AsyncIterator[Any]:
+        """respond 之后的那一次调用: 不带工具, 正文边写边产出 AnswerDelta; 结束与裸直答同一个口径 (completed / max_tokens)。"""
+        ctx, log = self.ctx, self.log
+        messages = log.derive_messages(system)
+        deltas: list[str] = []
+        res: Optional[dict] = None
+        failure: Optional[BaseException] = None
+        try:
+            async for kind, val in heartbeat(self.llm(messages, {**route, "tool_mode": "answer"}, deltas.append),
+                                             tick=self.tick, ping_every=self.ping_every):
+                if kind == "done":
+                    res = val
+                elif deltas:
+                    yield AnswerDelta(text="".join(deltas), n=step)
+                    deltas.clear()
+                if kind == "ping":
+                    yield PING
+        except (GeneratorExit, asyncio.CancelledError):
+            raise
+        except Exception as e:      # noqa: BLE001
+            failure = e
+        if deltas:
+            yield AnswerDelta(text="".join(deltas), n=step)
+            deltas.clear()
+        if failure is not None or not isinstance(res, dict):
+            msg = str(failure)[:300] if failure else "模型没有返回"
+            logger.warning("[loop] task=%s 答案阶段模型调用失败: %s", ctx.task_id, msg)
+            yield StepEnd(kind="error", reason=msg)
+            return
+        content = str(res.get("content") or "").strip()
+        log.append("assistant/message", content=content)
+        if str(res.get("finish_reason") or "") == "length":
+            self.max_tokens_hit = True
+            yield {"event": "notice", "kind": "max_tokens", "n": step, "reason": "回复被输出上限截断"}
+            yield StepEnd(kind="max_tokens", answer=content)
+            return
+        yield StepEnd(kind="completed", answer=content)
+
     async def _step(self, step: int, system: str) -> AsyncIterator[Any]:
         ctx, log = self.ctx, self.log
         # buildRequest: request 瀑布定本步路由 (换了就沿用), header 变了才记, 消息从日志推导
@@ -530,6 +585,8 @@ class ReactLoop:
         log.log_header({"model": str(route.get("model") or ""), "url": str(route.get("url") or ""),
                         "system_chars": len(system), "tools": len(self.tool_names)})
         messages = log.derive_messages(system)
+        # respond 协议 (见 RESPOND_TOOL): 这个回合有 respond 就每步强制调工具; 没有 (成员幕) 照旧 auto
+        call_route = {**route, "tool_mode": "required"} if RESPOND_TOOL in self.tool_names else route
         attempt = 0
         res: Optional[dict] = None
         while True:
@@ -537,7 +594,7 @@ class ReactLoop:
             deltas: list[str] = []
             failure: Optional[BaseException] = None
             try:
-                async for kind, val in heartbeat(self.llm(messages, route, deltas.append),
+                async for kind, val in heartbeat(self.llm(messages, call_route, deltas.append),
                                                  tick=self.tick, ping_every=self.ping_every):
                     if kind == "done":
                         res = val
@@ -610,6 +667,19 @@ class ReactLoop:
             log.append("assistant/message", content=content)
             yield StepEnd(kind="completed", answer=content)
             return
+        if RESPOND_TOOL in self.tool_names and any(c.name == RESPOND_TOOL for c in batch):
+            others = [c for c in batch if c.name != RESPOND_TOOL]
+            if not others:
+                # 模型说「开始回答」: 记下这一步, 再发一次不带工具的调用, 正文边写边出 (AnswerDelta)
+                rc = next(c for c in batch if c.name == RESPOND_TOOL)
+                log.append("assistant/message", content=rc.thought,
+                           tool_call={"id": rc.id, "name": rc.name, "args": {}}, tool_calls=[{"id": rc.id, "name": rc.name, "args": {}}])
+                log.append("tool/result", call_id=rc.id, tool=rc.name, content=RESPOND_RESULT)
+                async for ev in self._answer_phase(step, system, route):
+                    yield ev
+                return
+            # respond 跟真工具同一批: 先把工具跑了, 要回答再单独调 respond
+            batch = others + [c for c in batch if c.name == RESPOND_TOOL]
         log.append("assistant/message", content=batch[0].thought,
                    tool_call={"id": batch[0].id, "name": batch[0].name, "args": batch[0].args},
                    tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in batch])
@@ -621,6 +691,10 @@ class ReactLoop:
             if call.name not in self.tool_names:
                 log.append("tool/result", call_id=call.id, tool=call.name,
                            content=f"没有名为 {call.name} 的工具, 可用: {', '.join(sorted(self.tool_names))}。请重新选择。")
+                continue
+            if call.name == RESPOND_TOOL:
+                log.append("tool/result", call_id=call.id, tool=call.name,
+                           content="未执行: 先看同一步里工具的结果; 要回答就单独调 respond。")
                 continue
             concluding = call.name in self.concluding
             if not concluding:
