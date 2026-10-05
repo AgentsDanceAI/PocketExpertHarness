@@ -44,12 +44,11 @@ NEXT_TURN = "next_turn"
 PING = ": ping\n\n"
 
 STEER_PREFIX = "用户中途补充 (以此为准, 据此调整后续动作): "
-FORMAT_NUDGE = ("你上一条回复不是合法的动作 JSON (可能写成了自然语言)。"
-                "现在必须只输出一个能被 json.loads 解析的 JSON 对象, 直接以 { 开头、以 } 结尾, "
-                "不要任何解释文字。例如: "
-                '{"thought": "先联网搜索", "step": 1, "tool": "web_search", "args": {"query": "关键词"}}')
+# 端口报 malformed 却没附自己的 nudge 时的兜底纠正语。malformed 只剩一种含义: 工具调用的参数不是合法 JSON (多半被截断);
+# 「正文长得像动作 JSON」那种猜测 2026-10-05 已删 —— 原生 function calling 下正文就是正文。
+FORMAT_NUDGE = "你上一条回复里的工具调用参数不是合法 JSON (可能被截断)。请重新调用该工具, 参数写短一点。"
 REPEAT_NUDGE = "输出与上一轮完全相同。请换一个策略, 或用 finish 进入总结。"
-MAX_PARSE_FAILS = 4          # 连续格式错误的容忍次数 (强对话模型常吐散文, 给足纠正机会)
+MAX_PARSE_FAILS = 4          # 连续工具参数格式错误的容忍次数, 超过按"没有答案"收口
 MAX_DUP_RAWS = 2             # 连续一模一样的输出: 先提醒, 再犯强退 (卡死检测)
 CONCLUDING_TOOLS = frozenset({"finish", "final", "done", "render_slides", "build_webapp"})
 OBSERVATION_SSE_CHARS = 600
@@ -651,7 +650,7 @@ class ReactLoop:
         # 重复判定的指纹: 端口给了 raw 就用 raw, 否则 内容 + 工具调用 (同一句 thought 配不同调用不算重复)
         raw = str(res.get("raw") or "") or (content + (json.dumps(calls, ensure_ascii=False, sort_keys=True) if calls else ""))
         if res.get("malformed"):
-            # 长得像动作却解析不出 (截断/多余字段): 不是答案, 走格式纠正; 连错 4 次按"没有答案"收口
+            # 工具参数解析不出 (截断/多余字段): 不是答案, 走格式纠正; 连错 4 次按"没有答案"收口
             self.parse_fails += 1
             if self.parse_fails >= MAX_PARSE_FAILS:
                 yield StepEnd(kind="completed", reason="malformed")
