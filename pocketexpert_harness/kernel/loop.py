@@ -150,6 +150,10 @@ class SessionLog:
 
     def __init__(self, checkpoint_chars: int = 0):
         self.events: list[dict] = []
+        # 轨迹 = 只追加、不压缩的副本 (每条事件的浅拷贝): 压缩会原地截短 / 替换 events 里的前缀, 轨迹不受影响,
+        # 回合结束后原样落库, 供轨迹视图与会话日志导出。derive_messages 只读 events, 与它无关。
+        self.trace: list[dict] = []
+        self._last_system: Optional[str] = None
         self.threshold = int(checkpoint_chars or os.environ.get("AGENT_TRIM_CHECKPOINT_CHARS", "")
                              or DEFAULT_CHECKPOINT_CHARS)
         self.compactions = 0
@@ -157,7 +161,20 @@ class SessionLog:
     def append(self, kind: str, **payload) -> dict:
         ev = {"kind": kind, "at": time.time(), **payload}
         self.events.append(ev)
+        self.trace.append(dict(ev))
         return ev
+
+    def log_system(self, system: str) -> bool:
+        """系统提示只在第一次或变了才进轨迹 (request/system, 带全文): 平常整个回合只有一份。
+        不是 body 事件, 不参与推导与压缩。"""
+        if system == self._last_system:
+            return False
+        first = self._last_system is None
+        self._last_system = system
+        ev = {"kind": "request/system", "at": time.time(), "reason": "initial" if first else "change",
+              "chars": len(system or ""), "content": system or ""}
+        self.trace.append(ev)
+        return True
 
     def body(self) -> list[dict]:
         return [ev for ev in self.events if ev["kind"] in _BODY_KINDS]
@@ -291,6 +308,46 @@ class SessionLog:
         self.compactions += 1
         self.threshold = max(self.threshold, int(self.total_chars() * 1.5))
         return True
+
+
+class _CallMeter:
+    """一次模型调用的计量 (轨迹用): 发请求的时刻、第一个字 (思考或正文) 到达的时刻、思考全文、上游回报的用量。
+    只写 log.trace (model/call), 不进 events —— 发给模型的消息与它无关。"""
+    REASONING_CAP = 20000
+
+    def __init__(self):
+        self.t0 = time.time()
+        self.first: Optional[float] = None
+        self.reasoning: list[str] = []
+
+    def wrap(self, sink: Callable[[str], Any], *, reasoning: bool = False) -> Callable[[str], Any]:
+        def _cb(piece: str):
+            if self.first is None and piece:
+                self.first = time.time()
+            if reasoning and piece:
+                self.reasoning.append(piece)
+            return sink(piece)
+        return _cb
+
+    def record(self, log: "SessionLog", *, step: int, route: dict, res: Optional[dict], failure: Optional[BaseException],
+               attempt: int, phase: str = "step") -> dict:
+        now = time.time()
+        u = (res or {}).get("usage") if isinstance(res, dict) else None
+        u = u if isinstance(u, dict) else {}
+        _d = u.get("prompt_tokens_details")
+        ev = {"kind": "model/call", "at": now, "step": step, "phase": phase, "attempt": attempt,
+              "model": str(route.get("model") or ""), "t0": self.t0, "dur": round(now - self.t0, 3),
+              "ttft": round(self.first - self.t0, 3) if self.first else None,
+              "prompt_tokens": int(u.get("prompt_tokens") or 0), "completion_tokens": int(u.get("completion_tokens") or 0),
+              "cached_tokens": int((_d or {}).get("cached_tokens") or 0) if isinstance(_d, dict) else 0,
+              "finish": str((res or {}).get("finish_reason") or "") if isinstance(res, dict) else "",
+              "tool_calls": len((res or {}).get("tool_calls") or []) if isinstance(res, dict) else 0,
+              "reasoning": "".join(self.reasoning)[:self.REASONING_CAP],
+              "ok": failure is None and isinstance(res, dict)}
+        if failure is not None:
+            ev["error"] = str(failure)[:300]
+        log.trace.append(ev)
+        return ev
 
 
 # ── 结局与端口类型 ─────────────────────────────────────────────────────────
@@ -553,8 +610,10 @@ class ReactLoop:
         thinks: list[str] = []
         res: Optional[dict] = None
         failure: Optional[BaseException] = None
+        meter = _CallMeter()
         try:
-            async for kind, val in heartbeat(self.llm(messages, {**route, "tool_mode": "answer", "on_thinking": thinks.append}, deltas.append),
+            async for kind, val in heartbeat(self.llm(messages, {**route, "tool_mode": "answer", "on_thinking": meter.wrap(thinks.append, reasoning=True)},
+                                                      meter.wrap(deltas.append)),
                                              tick=self.tick, ping_every=self.ping_every):
                 if kind == "done":
                     res = val
@@ -577,6 +636,7 @@ class ReactLoop:
         if deltas:
             yield AnswerDelta(text="".join(deltas), n=step)
             deltas.clear()
+        meter.record(log, step=step, route=route, res=res, failure=failure, attempt=1, phase="answer")
         if failure is not None or not isinstance(res, dict):
             msg = str(failure)[:300] if failure else "模型没有返回"
             logger.warning("[loop] task=%s 答案阶段模型调用失败: %s", ctx.task_id, msg)
@@ -598,6 +658,7 @@ class ReactLoop:
         self.route = dict(route)
         log.log_header({"model": str(route.get("model") or ""), "url": str(route.get("url") or ""),
                         "system_chars": len(system), "tools": len(self.tool_names)})
+        log.log_system(system)
         messages = log.derive_messages(system)
         # respond 协议 (见 RESPOND_TOOL): 不强制 (2026-10-04 二改) —— 模型自己选: 调 respond 走答案阶段 (正文即时流出);
         # 直接写裸正文就是答案, 这一步结束才定 (慢一截但不会错)。曾用 tool_choice=required 逼它每步调工具, 上线实测
@@ -610,8 +671,11 @@ class ReactLoop:
             deltas: list[str] = []
             thinks: list[str] = []
             failure: Optional[BaseException] = None
+            res = None
+            meter = _CallMeter()
             try:
-                async for kind, val in heartbeat(self.llm(messages, {**call_route, "on_thinking": thinks.append}, deltas.append),
+                async for kind, val in heartbeat(self.llm(messages, {**call_route, "on_thinking": meter.wrap(thinks.append, reasoning=True)},
+                                                          meter.wrap(deltas.append)),
                                                  tick=self.tick, ping_every=self.ping_every):
                     if kind == "done":
                         res = val
@@ -634,6 +698,7 @@ class ReactLoop:
             if deltas:
                 yield {"event": "assistant_delta", "n": step, "text": "".join(deltas)}
                 deltas.clear()
+            meter.record(log, step=step, route=route, res=res, failure=failure, attempt=attempt)
             if failure is None and isinstance(res, dict):
                 break
             fail = {"message": str(failure)[:300] if failure else "模型没有返回", "type": type(failure).__name__ if failure else "Empty",
@@ -721,6 +786,7 @@ class ReactLoop:
                            content="未执行: 先看同一步里工具的结果; 要回答就单独调 respond。")
                 continue
             concluding = call.name in self.concluding
+            log.trace.append({"kind": "tool/start", "at": time.time(), "n": n, "call_id": call.id, "tool": call.name})
             if not concluding:
                 yield {"event": "step", "n": n, "thought": call.thought, "tool": call.name, "args": call.args,
                        **({"speaker": self.speaker} if self.speaker else {})}
