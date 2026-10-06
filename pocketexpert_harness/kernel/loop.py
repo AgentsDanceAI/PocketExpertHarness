@@ -461,6 +461,7 @@ class ReactLoop:
                  concluding: Iterable[str] = CONCLUDING_TOOLS,
                  tick: float = 0.5, ping_every: float = 10.0,
                  speaker: Optional[dict] = None,
+                 parallel: Iterable[str] = (),
                  on_user_message: Optional[Callable[[list[str]], Awaitable[Any]]] = None,
                  summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None):
         self.ctx, self.log, self.inbox = ctx, log, inbox
@@ -477,6 +478,8 @@ class ReactLoop:
         self.pre_step_plugins = list(pre_step)
         self.turn_stopping_plugins = list(turn_stopping)
         self.concluding = set(concluding)
+        # 可以同时跑的工具 (如请几位专家): 同一步里连着发的几个一起开工, 其余照旧按顺序逐个跑
+        self.parallel = set(parallel)
         # 这个回合的默认署名: 多智能体协作时每一步都要看得出是谁在做事 —— 编排者的回合署编排者,
         # 成员子回合署那位成员。工具自己带回来的 speaker 更具体, 优先它。
         self.speaker = dict(speaker) if speaker else None
@@ -651,6 +654,67 @@ class ReactLoop:
             return
         yield StepEnd(kind="completed", answer=content)
 
+    def _parallel_width(self, batch: list, k: int) -> int:
+        """从第 k 个调用起, 连着几个可以一起跑 (都在 parallel 里、都是在场工具); 不足两个返回 1。"""
+        w = 0
+        while k + w < len(batch) and batch[k + w].name in self.parallel and batch[k + w].name in self.tool_names:
+            w += 1
+        return max(1, w)
+
+    async def _run_parallel(self, step: int, k0: int, group: list, remain_note: str, results: list) -> AsyncIterator[Any]:
+        """同一步里连着的几个可并行调用一起跑。开工帧一次发齐; 进度帧按到达顺序转出 (各带自己的号);
+        谁先跑完谁先出观察。工具结果写回会话时仍按调用顺序 —— 与 tool_calls 的顺序一致。
+        结果按下标写进 results。某个调用抛错只算它这一个失败 (结果交回模型), 其余的照常跑完;
+        整个回合被取消 (用户停止) 时一起取消。"""
+        log = self.log
+        ns = [step if k0 + j == 0 else round(step + (k0 + j) / 20, 2) for j in range(len(group))]
+        for call, n in zip(group, ns):
+            log.trace.append({"kind": "tool/start", "at": time.time(), "n": n, "call_id": call.id, "tool": call.name})
+            yield {"event": "step", "n": n, "thought": call.thought, "tool": call.name, "args": call.args,
+                   **({"speaker": self.speaker} if self.speaker else {})}
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def _one(j: int, call: ToolCall, n: float) -> None:
+            res: Optional[ToolResult] = None
+            try:
+                async for ev in self.tools(call, n):
+                    if isinstance(ev, ToolResult):
+                        res = ev
+                    else:
+                        await queue.put((j, "ev", ev))
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001 — 一个出错不拖垮同组的其他调用
+                logger.exception("[loop] task=%s 并行调用 %s 出错", self.ctx.task_id, call.name)
+                res = ToolResult(ok=False, obs=f"工具 {call.name} 执行出错: {str(e)[:300]}")
+            await queue.put((j, "done", res or ToolResult(ok=False, obs=f"工具 {call.name} 没有返回结果")))
+
+        tasks = [asyncio.create_task(_one(j, c, n)) for j, (c, n) in enumerate(zip(group, ns))]
+        left = len(tasks)
+        try:
+            while left:
+                j, kind, item = await queue.get()
+                if kind == "ev":
+                    yield item
+                    continue
+                left -= 1
+                call, n, result = group[j], ns[j], item
+                results[j] = result
+                cap = int(self.obs_cap(call.name) or 1800)
+                self.steps_log.append({"n": n, "thought": call.thought, "tool": call.name, "args": call.args,
+                                       "ok": result.ok, "observation": result.obs[:cap], "data": result.data,
+                                       **({"speaker": result.speaker or self.speaker}
+                                          if (result.speaker or self.speaker) else {})})
+                yield {"event": "observation", "n": n, "tool": call.name, "ok": result.ok,
+                       "summary": result.obs[:OBSERVATION_SSE_CHARS], "data": result.data}
+        finally:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+        for call, result in zip(group, results):
+            cap = int(self.obs_cap(call.name) or 1800)
+            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{result.obs[:cap]}{remain_note}")
+
     async def _step(self, step: int, system: str) -> AsyncIterator[Any]:
         ctx, log = self.ctx, self.log
         # buildRequest: request 瀑布定本步路由 (换了就沿用), header 变了才记, 消息从日志推导
@@ -773,7 +837,23 @@ class ReactLoop:
                    tool_call={"id": batch[0].id, "name": batch[0].name, "args": batch[0].args},
                    tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in batch])
         remain_note = f"\n\n(剩余可用步数 {max(0, ctx.max_steps - step)})" if ctx.max_steps else ""
+        ran_to = 0      # 并行的一组已经跑到哪 (组里后面几个不再单独跑)
         for k, call in enumerate(batch):
+            if k < ran_to:
+                continue
+            width = self._parallel_width(batch, k)
+            if width > 1:
+                group, ran_to = batch[k:k + width], k + width
+                results: list = [None] * width
+                async for ev in self._run_parallel(step, k, group, remain_note, results):
+                    yield ev
+                done = next((r for r in results if r is not None and r.concluded), None)
+                if done is not None:
+                    for rest in batch[ran_to:]:
+                        log.append("tool/result", call_id=rest.id, tool=rest.name, content="未执行: 回合已收口。")
+                    yield StepEnd(kind="completed", deliver=done.deliver, answer=done.answer, reason="concluded")
+                    return
+                continue
             # 同一步的第 k 个调用各自一个号: 前端按 n 匹配 step/observation, 同号会互相覆盖
             # (小数位 k/20 与 notice/steer 用的 ±0.25/0.5 不撞)
             n = step if k == 0 else round(step + k / 20, 2)
