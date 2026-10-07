@@ -17,7 +17,7 @@
   SessionLog.log_header     请求头只在第一次或变了才记
   SessionLog.compact        压缩 = 步前把会话原地改写成检查点
   TurnEnd.kind              回合结局: completed / max-tokens / blocked / aborted / error
-  ToolResult.concluded      收口工具 (finish / render_slides / build_webapp): 执行即回合完成
+  ToolResult.concluded      收口工具 (如 finish): 执行即回合完成; 工具也可借它代写一句答复 (ToolResult.answer)
 
 引擎只提供三个端口:
   llm(messages, route, on_delta) -> {content, tool_calls, finish_reason, raw, malformed}  模型调用
@@ -50,7 +50,7 @@ FORMAT_NUDGE = "你上一条回复里的工具调用参数不是合法 JSON (可
 REPEAT_NUDGE = "输出与上一轮完全相同。请换一个策略, 或用 finish 进入总结。"
 MAX_PARSE_FAILS = 4          # 连续工具参数格式错误的容忍次数, 超过按"没有答案"收口
 MAX_DUP_RAWS = 2             # 连续一模一样的输出: 先提醒, 再犯强退 (卡死检测)
-CONCLUDING_TOOLS = frozenset({"finish", "final", "done", "render_slides", "build_webapp"})
+CONCLUDING_TOOLS = frozenset({"finish", "final", "done"})
 OBSERVATION_SSE_CHARS = 600
 MAX_CALLS_PER_STEP = 10      # 一步里最多执行的工具调用数 (默认 10; 这里按串行档逐个跑)
 
@@ -366,7 +366,6 @@ class ToolResult:
     obs: str = ""
     data: Any = None
     concluded: bool = False              # 收口工具: 这一步完成 = 回合完成
-    deliver: Optional[dict] = None       # 收口工具带的交付说明 {"kind": report|slides|webapp, "spec": …, "aux": …}
     answer: str = ""                     # 收口时平台代写的答复 (只在 concluded 时生效): 工具判定本轮到此为止,
                                          # 且原因必须原话交给用户 —— 不再交给模型转述 (如余额不足之类的硬拦截)
     speaker: Optional[dict] = None       # 署名: 多智能体协作时这一步是谁做的 (前端按它显示头像)
@@ -376,7 +375,6 @@ class ToolResult:
 class StepEnd:
     kind: str = ""                       # "" = 工具已执行、回合继续; completed | max_tokens | error
     answer: str = ""
-    deliver: Optional[dict] = None
     reason: str = ""
 
 
@@ -388,28 +386,10 @@ class ThinkingDelta:
 
 
 @dataclass
-class AnswerDelta:
-    """答案阶段的正文增量 (2026-10-04 respond 协议): 模型调过 respond 之后、不带工具的那次调用吐出来的字 ——
-    结构上必然是正文, 引擎直接发进正文 (answer + content 帧), 不再先停在思考区。"""
-    text: str = ""
-    n: int = 0
-
-
-#: 「开始回答」工具 (2026-10-04): 过程说明、思考、正文必须分得开, 而且不许撤回已经给用户看过的字。
-#: 接口里调工具前的说明与最终答案都是 content, 只差后面跟不跟工具调用 —— 这一步结束才知道。
-#: 所以把「写答案」做成结构上没有工具的一步: 模型调 respond 之后再发一次**不带工具**的调用, 那次的 content 必然是正文,
-#: 第一个字就进正文; 调工具前写的字必然是过程, 进思考区; 没调 respond 直接写的裸正文, 这一步结束时就是答案 (老路, 慢但不错)。
-#: 三条路都不猜、不撤回。respond 这一步约 1 秒, 之后答案首字不到 1 秒。
-RESPOND_TOOL = "respond"
-RESPOND_RESULT = "好, 现在直接写给用户的回答 (这一步没有工具)。"
-
-
-@dataclass
 class TurnEnd:
     kind: str = ""                       # completed | max_tokens | blocked | aborted | error
     reason: str = ""
     answer: str = ""                     # 最后一步没有工具调用时的自然语言回复 = 答案
-    deliver: Optional[dict] = None       # 最后一个收口工具的交付说明
     steps: int = 0
     max_tokens_hit: bool = False         # 粘性: 任一步撞过输出上限就记着, 回合级不清零
 
@@ -462,14 +442,9 @@ class ReactLoop:
                  tick: float = 0.5, ping_every: float = 10.0,
                  speaker: Optional[dict] = None,
                  parallel: Iterable[str] = (),
-                 on_user_message: Optional[Callable[[list[str]], Awaitable[Any]]] = None,
                  summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None):
         self.ctx, self.log, self.inbox = ctx, log, inbox
         self.summarizer = summarizer      # 摘要式压缩 (None = 机械截短)
-        # 用户中途插话的回调 (2026-09-10): 认领到 steer 之后、装配系统提示**之前**调一次,
-        # 所以刷新出来的理解当步就能进提示词。内核不认识"理解"是什么 —— 它只负责在
-        # "用户又说话了"这个时刻回调, 语义全在调用方。返回可迭代的事件则原样产出。
-        self.on_user_message = on_user_message
         self.llm, self.tools, self.assemble = llm, tools, assemble
         self.tool_names = set(tool_names)
         self.route = dict(route)
@@ -504,21 +479,7 @@ class ReactLoop:
                 ctx.step = step
                 # ── preStep: 认领收件箱 → 装配系统提示 → 压缩 → pre-step 瀑布 (enter / reject) ──
                 claimed = [_as_message(m) for m in inbox.claim(target)]
-                # ── 用户又说话了: 先让上层重新理解一次, 再装配系统提示 ──
-                # 只认 steer (用户跑到一半插的话)。followup 是这一轮的 goal 本身、inject 是后台
-                # 系统提示, 两者开跑前都理解过了, 再理解一次是白花一次调用。
-                _said = [m["raw"] for m in claimed if m["kind"] == "steer" and m["raw"].strip()]
-                if _said and self.on_user_message is not None:
-                    try:
-                        _evs = await self.on_user_message(_said)
-                        for _e in list(_evs or []):
-                            yield _e
-                    except (GeneratorExit, asyncio.CancelledError):
-                        raise
-                    except Exception:
-                        # 理解失败绝不挡住这一步 —— 与 decide_turn 同一条口径: 宁可少理解一次,
-                        # 也不能因为编排链抖动把用户插的话吞掉
-                        logger.exception("[loop] task=%s 中途理解失败, 按原理解继续", ctx.task_id)
+                # 用户跑到一半插的话 (steer) 就在 claimed 里, 下面原样进会话日志, 由模型这一步自己读
                 system = self.assemble(ctx)
                 await self._compact(system, step)
                 decision = await hooks.run_pre_step(ctx, claimed, extra=self.pre_step_plugins)
@@ -581,7 +542,7 @@ class ReactLoop:
         turn_ends = turn_ends or StepEnd(kind="completed")
         log.append("turn/end", turn=ctx.turn, reason=turn_ends.kind)
         self.end = TurnEnd(kind=turn_ends.kind, reason=turn_ends.reason, answer=turn_ends.answer,
-                           deliver=turn_ends.deliver, steps=step, max_tokens_hit=self.max_tokens_hit)
+                           steps=step, max_tokens_hit=self.max_tokens_hit)
 
     # ── 一步 ──
     async def _compact(self, system: str, step: int) -> None:
@@ -604,55 +565,6 @@ class ReactLoop:
                 except Exception:
                     logger.warning("[loop] task=%s 摘要式压缩失败, 退回机械截短", self.ctx.task_id, exc_info=True)
         log.compact()
-
-    async def _answer_phase(self, step: int, system: str, route: dict) -> AsyncIterator[Any]:
-        """respond 之后的那一次调用: 不带工具, 正文边写边产出 AnswerDelta; 结束与裸直答同一个口径 (completed / max_tokens)。"""
-        ctx, log = self.ctx, self.log
-        messages = log.derive_messages(system)
-        deltas: list[str] = []
-        thinks: list[str] = []
-        res: Optional[dict] = None
-        failure: Optional[BaseException] = None
-        meter = _CallMeter()
-        try:
-            async for kind, val in heartbeat(self.llm(messages, {**route, "tool_mode": "answer", "on_thinking": meter.wrap(thinks.append, reasoning=True)},
-                                                      meter.wrap(deltas.append)),
-                                             tick=self.tick, ping_every=self.ping_every):
-                if kind == "done":
-                    res = val
-                else:
-                    if thinks:
-                        yield ThinkingDelta(text="".join(thinks), n=step)
-                        thinks.clear()
-                    if deltas:
-                        yield AnswerDelta(text="".join(deltas), n=step)
-                        deltas.clear()
-                if kind == "ping":
-                    yield PING
-        except (GeneratorExit, asyncio.CancelledError):
-            raise
-        except Exception as e:      # noqa: BLE001
-            failure = e
-        if thinks:
-            yield ThinkingDelta(text="".join(thinks), n=step)
-            thinks.clear()
-        if deltas:
-            yield AnswerDelta(text="".join(deltas), n=step)
-            deltas.clear()
-        meter.record(log, step=step, route=route, res=res, failure=failure, attempt=1, phase="answer")
-        if failure is not None or not isinstance(res, dict):
-            msg = str(failure)[:300] if failure else "模型没有返回"
-            logger.warning("[loop] task=%s 答案阶段模型调用失败: %s", ctx.task_id, msg)
-            yield StepEnd(kind="error", reason=msg)
-            return
-        content = str(res.get("content") or "").strip()
-        log.append("assistant/message", content=content)
-        if str(res.get("finish_reason") or "") == "length":
-            self.max_tokens_hit = True
-            yield {"event": "notice", "kind": "max_tokens", "n": step, "reason": "回复被输出上限截断"}
-            yield StepEnd(kind="max_tokens", answer=content)
-            return
-        yield StepEnd(kind="completed", answer=content)
 
     def _parallel_width(self, batch: list, k: int) -> int:
         """从第 k 个调用起, 连着几个可以一起跑 (都在 parallel 里、都是在场工具); 不足两个返回 1。"""
@@ -724,9 +636,6 @@ class ReactLoop:
                         "system_chars": len(system), "tools": len(self.tool_names)})
         log.log_system(system)
         messages = log.derive_messages(system)
-        # respond 协议 (见 RESPOND_TOOL): 不强制 (2026-10-04 二改) —— 模型自己选: 调 respond 走答案阶段 (正文即时流出);
-        # 直接写裸正文就是答案, 这一步结束才定 (慢一截但不会错)。曾用 tool_choice=required 逼它每步调工具, 上线实测
-        # 把它往多用工具推 (带图的 3 次有 2 次先去联网, 问答题一次请了两位专家); 速度不该用改变它的决定来换。
         call_route = route
         attempt = 0
         res: Optional[dict] = None
@@ -820,19 +729,6 @@ class ReactLoop:
             log.append("assistant/message", content=content)
             yield StepEnd(kind="completed", answer=content)
             return
-        if RESPOND_TOOL in self.tool_names and any(c.name == RESPOND_TOOL for c in batch):
-            others = [c for c in batch if c.name != RESPOND_TOOL]
-            if not others:
-                # 模型说「开始回答」: 记下这一步, 再发一次不带工具的调用, 正文边写边出 (AnswerDelta)
-                rc = next(c for c in batch if c.name == RESPOND_TOOL)
-                log.append("assistant/message", content=rc.thought,
-                           tool_call={"id": rc.id, "name": rc.name, "args": {}}, tool_calls=[{"id": rc.id, "name": rc.name, "args": {}}])
-                log.append("tool/result", call_id=rc.id, tool=rc.name, content=RESPOND_RESULT)
-                async for ev in self._answer_phase(step, system, route):
-                    yield ev
-                return
-            # respond 跟真工具同一批: 先把工具跑了, 要回答再单独调 respond
-            batch = others + [c for c in batch if c.name == RESPOND_TOOL]
         log.append("assistant/message", content=batch[0].thought,
                    tool_call={"id": batch[0].id, "name": batch[0].name, "args": batch[0].args},
                    tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in batch])
@@ -851,7 +747,7 @@ class ReactLoop:
                 if done is not None:
                     for rest in batch[ran_to:]:
                         log.append("tool/result", call_id=rest.id, tool=rest.name, content="未执行: 回合已收口。")
-                    yield StepEnd(kind="completed", deliver=done.deliver, answer=done.answer, reason="concluded")
+                    yield StepEnd(kind="completed", answer=done.answer, reason="concluded")
                     return
                 continue
             # 同一步的第 k 个调用各自一个号: 前端按 n 匹配 step/observation, 同号会互相覆盖
@@ -860,10 +756,6 @@ class ReactLoop:
             if call.name not in self.tool_names:
                 log.append("tool/result", call_id=call.id, tool=call.name,
                            content=f"没有名为 {call.name} 的工具, 可用: {', '.join(sorted(self.tool_names))}。请重新选择。")
-                continue
-            if call.name == RESPOND_TOOL:
-                log.append("tool/result", call_id=call.id, tool=call.name,
-                           content="未执行: 先看同一步里工具的结果; 要回答就单独调 respond。")
                 continue
             concluding = call.name in self.concluding
             log.trace.append({"kind": "tool/start", "at": time.time(), "n": n, "call_id": call.id, "tool": call.name})
@@ -891,6 +783,6 @@ class ReactLoop:
                 # 收口工具结束回合; 同批后面的不再执行, 但各留一条结果 — 原生协议里每个 tool_call 都得有配对的 tool 消息
                 for rest in batch[k + 1:]:
                     log.append("tool/result", call_id=rest.id, tool=rest.name, content=f"未执行: 回合已由 {call.name} 收口。")
-                yield StepEnd(kind="completed", deliver=result.deliver, answer=result.answer, reason="concluded")
+                yield StepEnd(kind="completed", answer=result.answer, reason="concluded")
                 return
         yield StepEnd()
