@@ -47,3 +47,12 @@ def test_streaming_requests_ask_for_usage(settings):
     body = ChatModel(settings)._body([{"role": "user", "content": "x"}], "m", None, True)
     assert body["stream_options"] == {"include_usage": True}
     assert "stream_options" not in ChatModel(settings)._body([{"role": "user", "content": "x"}], "m", None, False)
+
+
+def test_search_brake_is_configurable(monkeypatch, tmp_path):
+    from pocketexpert_harness.config import Settings
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PEH_SEARCH_BRAKE", raising=False)
+    assert Settings.from_env().search_brake == 6
+    monkeypatch.setenv("PEH_SEARCH_BRAKE", "0")
+    assert Settings.from_env().search_brake == 0

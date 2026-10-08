@@ -68,6 +68,8 @@ class Settings:
     home: Path = field(default_factory=lambda: Path.home() / ".pocketexpert-harness")
     workspace: Path = field(default_factory=lambda: Path.cwd() / "workspace")
     max_steps: int = 30
+    #: 一轮搜索到这么多次, 提醒模型收尾 (只提醒不拦); 0 = 不提醒。深度检索类任务 (多跳查证) 可以调大或关掉
+    search_brake: int = 6
     python_mode: str = "ask"
     vision_mode: str = "auto"
     thinking_mode: str = "auto"
@@ -115,6 +117,7 @@ class Settings:
             home=home,
             workspace=Path(_env("PEH_WORKSPACE") or Path.cwd() / "workspace").expanduser(),
             max_steps=int(_env("PEH_MAX_STEPS", "30")),
+            search_brake=int(_env("PEH_SEARCH_BRAKE", "6")),
             python_mode=py if py in PYTHON_MODES else "off",
             vision_mode=_env("PEH_VISION", "auto").lower(),
             thinking_mode=_env("PEH_THINKING", "auto").lower(),

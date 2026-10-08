@@ -216,7 +216,8 @@ class Harness:
             self.model.new_turn()
         steps_log: list = []
         loop = ReactLoop(ctx=ctx, log=log, inbox=inbox, steps_log=steps_log,
-                         pre_step=[("skill_autoload", skill_autoload(self.skills)), ("search_brake", search_brake(steps_log))],
+                         pre_step=[("skill_autoload", skill_autoload(self.skills))]
+                         + ([("search_brake", search_brake(steps_log, self.s.search_brake))] if self.s.search_brake > 0 else []),
                          llm=functools.partial(self.model.port, tools=self.registry.schemas() or None),
                          tools=self.registry.port, assemble=self.system_prompt,
                          tool_names=self.registry.names, route=self.model.route,
