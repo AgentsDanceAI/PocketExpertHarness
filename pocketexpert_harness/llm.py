@@ -81,6 +81,14 @@ def _image_data_url(workspace: Optional[Path], rel: str) -> str:
 class LLMError(RuntimeError):
     """模型服务返回错误。消息里带 HTTP 状态码, 内核的重试钩子据此判断 429/5xx 要不要重试。"""
 
+    def __init__(self, message: str, *, status: int = 0, detail: str = ""):
+        super().__init__(message)
+        self.status, self.detail = status, detail
+
+
+#: 400 的报错里出现这些, 就当是服务端不认打开思考的字段 (enable_thinking / thinking / thinking_budget / reasoning)
+_THINKING_REJECTED = re.compile(r"think|reason", re.I)
+
 
 def _parse_args(raw: str) -> Optional[dict]:
     raw = (raw or "").strip()
@@ -101,6 +109,10 @@ class ChatModel:
         self._client = client
         self._timeout = timeout
         self.usage = {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
+        # 服务端不认打开思考的字段时置真, 之后这个进程里不再发 (见 port 里的重试)
+        self.thinking_rejected = False
+        # 本轮模型的思考, 按它随后发起的工具调用 id 存: 同一轮工具调用过程中把思考原样回传 (见 Settings.passes_reasoning_back)
+        self._reasoning_by_call: dict[str, str] = {}
 
     @property
     def route(self) -> dict:
@@ -113,8 +125,28 @@ class ChatModel:
             h["Authorization"] = f"Bearer {self.s.api_key}"
         return h
 
-    def _body(self, messages: list, model: str, tools: Optional[list], stream: bool) -> dict:
+    def new_turn(self) -> None:
+        """新的一轮开始: 上一轮的思考不再回传 (只在同一轮的工具调用过程中回传)。"""
+        self._reasoning_by_call.clear()
+
+    @property
+    def thinking_on(self) -> bool:
+        return bool(self.s.thinking_body()) and not self.thinking_rejected
+
+    def _with_reasoning(self, messages: list) -> list:
+        if not self._reasoning_by_call or not self.s.passes_reasoning_back:
+            return messages
+        out = []
+        for m in messages:
+            ids = [c.get("id") for c in (m.get("tool_calls") or []) if isinstance(c, dict)]
+            r = next((self._reasoning_by_call[i] for i in ids if i in self._reasoning_by_call), None)
+            out.append({**m, "reasoning_content": r} if (m.get("role") == "assistant" and r) else m)
+        return out
+
+    def _body(self, messages: list, model: str, tools: Optional[list], stream: bool, *, thinking: bool = False) -> dict:
         messages = expand_images(messages, self.s.workspace, self.s.supports_vision)
+        if thinking:
+            messages = self._with_reasoning(messages)
         body: dict[str, Any] = {"model": model, "messages": messages, "stream": stream}
         if tools:
             body["tools"] = tools
@@ -123,6 +155,8 @@ class ChatModel:
             body["temperature"] = self.s.temperature
         if self.s.max_tokens:
             body["max_tokens"] = self.s.max_tokens
+        if thinking:
+            body.update(self.s.thinking_body())
         body.update(self.s.extra_body or {})
         return body
 
@@ -139,19 +173,35 @@ class ChatModel:
     async def port(self, messages: list, route: dict, on_delta: Callable[[str], None], *,
                    tools: Optional[list] = None) -> dict:
         url = f"{str(route.get('url') or self.s.base_url).rstrip('/')}/chat/completions"
-        body = self._body(messages, str(route.get("model") or self.s.model), tools, stream=True)
+        model = str(route.get("model") or self.s.model)
+        on_thinking = route.get("on_thinking")
+        thinking = self.thinking_on
+        try:
+            return await self._stream(url, self._body(messages, model, tools, stream=True, thinking=thinking),
+                                      on_delta, on_thinking)
+        except LLMError as e:
+            # 服务端不认打开思考的字段 (比如百炼的 qwen-vl-max: 400 "thinking_budget ..."): 去掉它重发一次, 之后不再发
+            if not (thinking and e.status == 400 and _THINKING_REJECTED.search(e.detail)):
+                raise
+            logger.warning("模型服务不接受打开思考的参数, 本进程里改为不开思考: %s", e.detail[:200])
+            self.thinking_rejected = True
+            return await self._stream(url, self._body(messages, model, tools, stream=True), on_delta, on_thinking)
+
+    async def _stream(self, url: str, body: dict, on_delta: Callable[[str], None],
+                      on_thinking: Optional[Callable[[str], None]]) -> dict:
         content: list[str] = []
+        reasoning: list[str] = []
         calls: dict[int, dict] = {}
         finish = ""
         async with self._http().stream("POST", url, headers=self._headers(), json=body) as resp:
             if resp.status_code >= 400:
                 detail = (await resp.aread()).decode("utf-8", "replace")[:500]
-                raise LLMError(f"HTTP {resp.status_code} from {self.s.provider}: {detail}")
+                raise LLMError(f"HTTP {resp.status_code} from {self.s.provider}: {detail}", status=resp.status_code, detail=detail)
             ctype = resp.headers.get("content-type", "")
             if "text/event-stream" not in ctype:
                 # 个别服务忽略 stream=true 直接回整包 JSON
                 data = json.loads((await resp.aread()).decode("utf-8", "replace"))
-                return self._from_message(data, on_delta)
+                return self._from_message(data, on_delta, on_thinking)
             async for line in resp.aiter_lines():
                 line = line.strip()
                 if not line.startswith("data:"):
@@ -168,6 +218,12 @@ class ChatModel:
                 self._count(chunk.get("usage"))
                 for choice in chunk.get("choices") or []:
                     delta = choice.get("delta") or {}
+                    # 思考: DeepSeek / 百炼 / 硅基流动叫 reasoning_content, OpenRouter / Ollama 叫 reasoning
+                    think = delta.get("reasoning_content") or delta.get("reasoning")
+                    if isinstance(think, str) and think:
+                        reasoning.append(think)
+                        if on_thinking is not None:
+                            on_thinking(think)
                     text = delta.get("content")
                     if text:
                         content.append(text)
@@ -184,18 +240,27 @@ class ChatModel:
                     if choice.get("finish_reason"):
                         finish = choice["finish_reason"]
         self.usage["calls"] += 1
-        return self._result("".join(content), [calls[k] for k in sorted(calls)], finish)
+        out = self._result("".join(content), [calls[k] for k in sorted(calls)], finish)
+        if reasoning:
+            thought = "".join(reasoning)
+            for c in out["tool_calls"]:
+                self._reasoning_by_call[c["id"]] = thought
+        return out
 
     def _count(self, usage: Optional[dict]) -> None:
         if isinstance(usage, dict):
             self.usage["prompt_tokens"] += int(usage.get("prompt_tokens") or 0)
             self.usage["completion_tokens"] += int(usage.get("completion_tokens") or 0)
 
-    def _from_message(self, data: dict, on_delta: Callable[[str], None]) -> dict:
+    def _from_message(self, data: dict, on_delta: Callable[[str], None],
+                      on_thinking: Optional[Callable[[str], None]] = None) -> dict:
         self._count(data.get("usage"))
         self.usage["calls"] += 1
         choice = (data.get("choices") or [{}])[0]
         msg = choice.get("message") or {}
+        think = msg.get("reasoning_content") or msg.get("reasoning")
+        if isinstance(think, str) and think and on_thinking is not None:
+            on_thinking(think)
         text = str(msg.get("content") or "")
         if text:
             on_delta(text)

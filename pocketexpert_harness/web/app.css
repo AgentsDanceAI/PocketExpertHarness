@@ -107,6 +107,16 @@ button { cursor: pointer; }
 .step .args { font-family: var(--mono); font-size: 12px; color: var(--muted); word-break: break-all; }
 .step .thought { color: var(--ink); margin: 2px 0; }
 .step .obs { color: var(--muted); white-space: pre-wrap; word-break: break-word; max-height: 7.5em; overflow: hidden; }
+/* 模型的思考: 比正文淡一档, 跑的时候展开滚动, 跑完折叠 */
+.step .think { margin: 1px 0 3px; }
+.step .think > summary { cursor: pointer; color: var(--muted); font-size: 12px; list-style: none; display: inline-flex; align-items: center; gap: 4px; }
+.step .think > summary::-webkit-details-marker { display: none; }
+.step .think > summary::before { content: "▸"; font-size: 10px; transition: transform .15s; }
+.step .think[open] > summary::before { transform: rotate(90deg); }
+.step .think.live > summary { color: var(--accent); }
+.step .think-text { color: var(--muted); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  max-height: 12em; overflow-y: auto; margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--line); }
+.step.think-only .mark { background: var(--accent-soft); color: var(--accent); }
 
 .answer { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; box-shadow: var(--shadow); word-break: break-word; }
 .answer.draft { border-style: dashed; box-shadow: none; }

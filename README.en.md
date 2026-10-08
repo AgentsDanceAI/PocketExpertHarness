@@ -160,6 +160,12 @@ It makes one real model call, then reports search, code execution and MCP status
 
 Any OpenAI-compatible `/chat/completions` endpoint with tool calling works. Presets: `deepseek`, `qwen`, `siliconflow`, `openai`, `openrouter`, `ollama`. Override with `LLM_MODEL` and `LLM_BASE_URL`.
 
+## 💭 Thinking mode
+
+On by default: models that can reason **think before every step**. The web UI streams the reasoning live and folds it into "思考 · N 字" afterwards; the terminal shows it in grey. Within a turn the previous step's reasoning is passed back so the model keeps its train of thought instead of starting over (required by DeepSeek; verified faster and steadier on Alibaba Bailian). Models that reject the parameter (e.g. `qwen-vl-max`) fall back to no thinking automatically. Control it with `PEH_THINKING=auto|on|off`; `peh doctor` checks it with a real call.
+
+Bailian (`enable_thinking`) is verified with deepseek-v3.2 / qwen-plus / qwen3-max; DeepSeek (`thinking.type=enabled`), SiliconFlow (`enable_thinking`) and OpenRouter (`reasoning.enabled`) follow their official docs and are not yet verified by us. On Bailian deepseek-v3.2, two multi-step tasks run twice each finished faster with thinking on (84 s / 117 s vs 91 s / 135 s; 91 s / 50 s vs 106 s / 124 s), all answers correct; without passing the reasoning back, thinking was slower than not thinking at all.
+
 ## 🖼️ Images, files and charts
 
 Attach files in the web UI with the paperclip, by pasting, or by dragging them in (≤ 50MB each, up to 10 per message); they land in the workspace under `uploads/`. Images go straight to vision models — detected from the model name (`vl`, `vision`, `gpt-4o`, `claude`, `gemini`, `omni`, …) or forced with `PEH_VISION=on|off`. Video and audio can be uploaded and processed as files, but no audio/video understanding model is wired in yet. Ask for a chart and it is drawn with matplotlib, saved to the workspace and shown inline; the Workspace files panel lists everything the agent produced.

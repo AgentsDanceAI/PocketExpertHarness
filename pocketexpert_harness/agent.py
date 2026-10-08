@@ -16,7 +16,7 @@ import httpx
 from pocketexpert_harness.config import Settings
 from pocketexpert_harness.files import KIND_LABEL, human_size, kind_of
 from pocketexpert_harness.kernel import hooks
-from pocketexpert_harness.kernel.loop import PING, Inbox, ReactLoop, SessionLog, heartbeat
+from pocketexpert_harness.kernel.loop import PING, Inbox, ReactLoop, SessionLog, ThinkingDelta, heartbeat
 from pocketexpert_harness.llm import ChatModel
 from pocketexpert_harness.mcp import MCPManager
 from pocketexpert_harness.memory import Memory
@@ -212,6 +212,8 @@ class Harness:
         inbox = inbox or Inbox()
         inbox.followup(message)
         turn_state.set({})
+        if hasattr(self.model, "new_turn"):      # 自己注入的模型端口不一定有
+            self.model.new_turn()
         steps_log: list = []
         loop = ReactLoop(ctx=ctx, log=log, inbox=inbox, steps_log=steps_log,
                          pre_step=[("skill_autoload", skill_autoload(self.skills)), ("search_brake", search_brake(steps_log))],
@@ -222,6 +224,12 @@ class Harness:
         yield {"event": "turn_start", "task_id": ctx.task_id}
         async for ev in loop.run():
             if ev == PING or isinstance(ev, str):
+                continue
+            if isinstance(ev, ThinkingDelta):
+                # 模型这一步的思考 (思考开着才有), 在这一步的工具调用 / 正文之前到
+                yield {"event": "thinking", "n": ev.n, "text": ev.text}
+                continue
+            if not isinstance(ev, dict):
                 continue
             yield ev
             if ctx.extra.get("skills_loaded") and not ctx.extra.get("_skills_announced"):

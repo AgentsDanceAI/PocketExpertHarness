@@ -179,6 +179,7 @@ def create_app(settings: Optional[Settings] = None, *, harness: Optional[Harness
                 "model": settings.model, "tools": h.registry.names, "web_search": search_backend(settings) or None,
                 "python": settings.python_mode, "workspace": str(settings.workspace),
                 "vision": settings.supports_vision, "max_upload_mb": MAX_UPLOAD_BYTES // 1024 // 1024,
+                "thinking": bool(getattr(h.model, "thinking_on", False)),
                 "skills": [{"name": s.name, "description": s.description} for s in h.skills.values()],
                 "mcp": h.mcp.status()}
 

@@ -10,6 +10,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 #: 常用的 OpenAI 兼容服务。模型名只是默认值, 用 LLM_MODEL 覆盖。
 PROVIDERS: dict[str, dict] = {
@@ -69,6 +70,7 @@ class Settings:
     max_steps: int = 30
     python_mode: str = "ask"
     vision_mode: str = "auto"
+    thinking_mode: str = "auto"
     allow_private_urls: bool = False
 
     searxng_url: str = ""
@@ -108,6 +110,7 @@ class Settings:
             max_steps=int(_env("PEH_MAX_STEPS", "30")),
             python_mode=py if py in PYTHON_MODES else "off",
             vision_mode=_env("PEH_VISION", "auto").lower(),
+            thinking_mode=_env("PEH_THINKING", "auto").lower(),
             allow_private_urls=_env("PEH_ALLOW_PRIVATE_URLS") == "1",
             searxng_url=_env("SEARXNG_URL").rstrip("/"),
             tavily_api_key=_env("TAVILY_API_KEY"),
@@ -126,6 +129,34 @@ class Settings:
         if self.vision_mode in ("off", "0", "false", "no"):
             return False
         return bool(VISION_HINTS.search(self.model or ""))
+
+    def thinking_body(self) -> dict:
+        """打开模型思考要加进请求体的字段 (各家写法不同); 空 dict = 不开。
+
+        auto (默认): 认得出写法的服务就开 —— DeepSeek 官方 / 百炼 (DashScope) / 硅基流动 / OpenRouter;
+        on: 认不出的服务也按百炼的写法 (enable_thinking) 试; off: 不开。
+        服务端不认这个字段 (400) 时 ChatModel 会去掉它重发一次, 之后这个进程里不再发。"""
+        mode = self.thinking_mode
+        if mode in ("off", "0", "false", "no"):
+            return {}
+        host = urlparse(self.base_url or "").netloc.lower()
+        if "deepseek.com" in host:
+            return {"thinking": {"type": "enabled"}}
+        if "openrouter.ai" in host:
+            return {"reasoning": {"enabled": True}}
+        if "dashscope" in host or "aliyuncs.com" in host or "siliconflow" in host:
+            return {"enable_thinking": True}
+        if mode in ("on", "1", "true", "yes"):
+            return {"enable_thinking": True}
+        return {}
+
+    @property
+    def passes_reasoning_back(self) -> bool:
+        """同一轮工具调用过程中, 要不要把模型上一步的思考随消息回传。
+        DeepSeek 官方要求回传; 百炼实测接受, 且回传后更快更稳 (不回传时每一步都从头想, 实测反而比不开思考还慢、步数更多)。
+        其他服务没验证过是否接受这个字段, 先不传。"""
+        host = urlparse(self.base_url or "").netloc.lower()
+        return any(h in host for h in ("deepseek.com", "dashscope", "aliyuncs.com"))
 
     def problems(self) -> list[str]:
         """启动前能查出来的配置问题 (空列表 = 可以跑)。"""

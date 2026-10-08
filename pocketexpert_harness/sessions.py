@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 _ID_RE = re.compile(r"^[a-f0-9]{12}$")
+THINKING_CAP = 8000       # 每段思考最多存这么多字 (给人回看, 不回传给模型)
 
 
 class SessionStore:
@@ -76,15 +77,22 @@ class TranscriptBuilder:
         self.kind = ""
         self.notices: list[str] = []
         self._draft = ""
+        self._think = ""          # 当前这一步的思考 (思考开着才有), 等这一步的工具调用或最终回答来了挂上去
+        self.thinking = ""        # 写最终回答之前的那段思考
 
     def feed(self, ev: dict) -> None:
         e = ev.get("event")
-        if e == "assistant_delta":
+        if e == "thinking":
+            self._think += str(ev.get("text") or "")
+        elif e == "assistant_delta":
             self._draft += str(ev.get("text") or "")
         elif e == "step":
-            self.steps.append({"n": ev.get("n"), "tool": ev.get("tool"), "args": ev.get("args") or {},
-                               "thought": str(ev.get("thought") or self._draft).strip()[:600], "ok": None, "summary": ""})
-            self._draft = ""
+            st = {"n": ev.get("n"), "tool": ev.get("tool"), "args": ev.get("args") or {},
+                  "thought": str(ev.get("thought") or self._draft).strip()[:600], "ok": None, "summary": ""}
+            if self._think.strip():
+                st["thinking"] = self._think.strip()[:THINKING_CAP]
+            self.steps.append(st)
+            self._draft, self._think = "", ""
         elif e == "observation":
             for st in reversed(self.steps):
                 if st["n"] == ev.get("n"):
@@ -96,9 +104,12 @@ class TranscriptBuilder:
             self.notices.append(str(ev.get("reason") or ev.get("kind") or ""))
         elif e == "done":
             self.answer, self.kind = str(ev.get("answer") or ""), str(ev.get("kind") or "")
+            self.thinking, self._think = self._think.strip()[:THINKING_CAP], ""
 
     def record(self, took: Optional[float] = None) -> dict:
         rec = {"role": "assistant", "text": self.answer, "steps": self.steps, "kind": self.kind, "at": time.time()}
+        if self.thinking or self._think.strip():
+            rec["thinking"] = (self.thinking or self._think.strip())[:THINKING_CAP]
         if took is not None:
             rec["took"] = round(took, 1)
         return rec

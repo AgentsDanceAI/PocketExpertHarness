@@ -104,10 +104,28 @@ async def run_one_turn(h: Harness, history: list, text: str, st: Style, attachme
             installed = True
         except (NotImplementedError, RuntimeError):
             pass
-    streamed, answer, new_history = False, "", history
+    streamed, thinking, answer, new_history = False, False, "", history
     try:
         async for ev in h.run_turn(history, text, attachments=attachments):
             e = ev.get("event")
+            if e == "thinking":
+                # 模型的思考: 灰字实时打出来, 后面接工具调用或正文时换行
+                piece = str(ev.get("text") or "")
+                if not thinking:
+                    piece = piece.lstrip()
+                    if not piece:
+                        continue
+                    if streamed:
+                        sys.stdout.write("\n")
+                        streamed = False
+                    sys.stdout.write(st.dim("  思考: "))
+                    thinking = True
+                sys.stdout.write(st.dim(piece.replace("\n", "\n        ")))
+                sys.stdout.flush()
+                continue
+            if thinking:
+                sys.stdout.write("\n")
+                thinking = False
             if e == "assistant_delta":
                 sys.stdout.write(str(ev.get("text") or ""))
                 sys.stdout.flush()
@@ -212,6 +230,23 @@ async def cmd_run(s: Settings, args) -> int:
     return 0 if answer else 1
 
 
+async def _doctor_thinking(h: Harness) -> str:
+    """真调一次看思考开没开成: 服务认不认那个字段、模型回没回思考内容。"""
+    if not h.model.thinking_on:
+        return "· 思考: 关闭 (设 PEH_THINKING=on 开启)"
+    got: list[str] = []
+    try:
+        await h.model.port([{"role": "user", "content": "17 × 23 等于多少? 只回答数字。"}], {**h.model.route, "on_thinking": got.append},
+                           lambda _t: None)
+    except Exception as e:      # noqa: BLE001
+        return f"· 思考: 没测成 ({str(e)[:120]})"
+    if h.model.thinking_rejected:
+        return "· 思考: 这个模型服务不接受打开思考的参数, 已自动关掉"
+    if got:
+        return f"✓ 思考: 开启 (这次想了 {len(''.join(got))} 字)"
+    return "· 思考: 已请求开启, 但这个模型没返回思考内容 (多半是它不支持思考)"
+
+
 async def cmd_doctor(s: Settings, _args) -> int:
     st = Style(sys.stdout.isatty())
     ok = _check_config(s, st)
@@ -224,6 +259,8 @@ async def cmd_doctor(s: Settings, _args) -> int:
             except Exception as e:      # noqa: BLE001
                 ok = False
                 print(st.red(f"✗ 模型调用失败: {e}"))
+        if ok:
+            print(await _doctor_thinking(h))
         backend = search_backend(s)
         print(f"{'✓' if backend else '·'} 联网搜索: {backend or '未配置 (设 SEARXNG_URL / TAVILY_API_KEY / BRAVE_API_KEY)'}")
         print(f"· 代码执行: {s.python_mode}   工作区: {s.workspace}")

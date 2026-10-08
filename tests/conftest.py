@@ -23,6 +23,8 @@ class FakeModel:
             item = item(messages)
         if isinstance(item, Exception):
             raise item
+        if item.get("thinking") and route.get("on_thinking"):
+            route["on_thinking"](item["thinking"])
         if item.get("content"):
             on_delta(item["content"])
         return {"content": item.get("content", ""), "tool_calls": item.get("tool_calls", []),

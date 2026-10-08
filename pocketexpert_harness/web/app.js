@@ -180,13 +180,33 @@ function userBubble(text, atts) {
   thread.appendChild(wrap);
 }
 
+/** 模型的思考: 跑的时候展开滚动显示, 跑完折叠成「思考 · N 字」 */
+function thinkNode(text, live) {
+  const d = el("details", "think" + (live ? " live" : ""));
+  d.open = !!live;
+  d.appendChild(el("summary", "", live ? "思考中…" : `思考 · ${text.length} 字`));
+  const t = el("div", "think-text", text.trim());
+  d.appendChild(t);
+  if (live) requestAnimationFrame(() => { t.scrollTop = t.scrollHeight; });
+  return d;
+}
+
 function stepNode(st) {
+  if (st.tool === "think") {           // 写最终回答之前的那段思考 (没有工具调用)
+    const li = el("li", "step think-only");
+    li.appendChild(el("span", "mark", "…"));
+    const body = el("div");
+    body.appendChild(thinkNode(st.thinking || "", st.live));
+    li.appendChild(body);
+    return li;
+  }
   const li = el("li", "step" + (st.tool === "steer" ? " steer" : st.ok === true ? " ok" : st.ok === false ? " bad" : ""));
   li.appendChild(el("span", "mark", st.tool === "steer" ? "↳" : st.ok === true ? "✓" : st.ok === false ? "!" : "·"));
   const body = el("div");
   if (st.tool === "steer") {
     body.appendChild(el("div", "thought", "你补充: " + (st.thought || "")));
   } else {
+    if (st.thinking) body.appendChild(thinkNode(st.thinking, false));
     if (st.thought) body.appendChild(el("div", "thought", st.thought));
     const line = el("div");
     line.appendChild(el("span", "tool", st.tool));
@@ -215,13 +235,17 @@ function aiBlock() {
   return { wrap, trace, sum, steps, answer, meta, list: [] };
 }
 
-const nSteps = (b) => b.list.filter((s) => s.tool !== "steer").length;
+const nSteps = (b) => b.list.filter((s) => s.tool !== "steer" && s.tool !== "think").length;
+const hasThinking = (b) => b.list.some((s) => s.thinking);
 function setSummary(b, live, elapsed) {
   b.sum.textContent = "";
   if (live) b.sum.appendChild(el("span", "live-dot"));
   const n = nSteps(b);
   const t = elapsed != null ? ` · ${fmtTook(elapsed)}` : "";
-  b.sum.appendChild(document.createTextNode(live ? (n ? `正在做第 ${n} 步${t}` : `正在思考${t}`) : `做了 ${n} 步${t}`));
+  let label;
+  if (live) label = b.thinkingLive ? (n ? `正在思考第 ${n + 1} 步${t}` : `正在思考${t}`) : (n ? `正在做第 ${n} 步${t}` : `正在思考${t}`);
+  else label = n ? `做了 ${n} 步${t}` : `思考过程${t}`;
+  b.sum.appendChild(document.createTextNode(label));
 }
 
 /** 答案下面那一行: 用时 + 复制 */
@@ -238,7 +262,8 @@ function finishMeta(b, text, took) {
 
 function renderRecord(rec) {
   const b = aiBlock();
-  b.list = rec.steps || [];
+  b.list = (rec.steps || []).slice();
+  if (rec.thinking) b.list.push({ tool: "think", thinking: rec.thinking });
   const took = rec.took != null ? Math.round(rec.took) : null;
   if (b.list.length) {
     b.trace.hidden = false;
@@ -392,6 +417,7 @@ async function send(text) {
   userBubble(text, atts);
   const b = aiBlock();
   let draft = "", draftEl = null;
+  let think = "", thinkSt = null;       // 这一步正在流的思考, 以及显示它的临时条目
   const t0 = Date.now();
   // 一发出去就有反馈: 模型第一次回话前 (或它直接调工具、一个字都没吐) 也在读秒
   b.trace.hidden = false; b.trace.open = true; setSummary(b, true, 0);
@@ -405,21 +431,46 @@ async function send(text) {
   scrollDown();
   if ($("#title").textContent === "新对话") $("#title").textContent = (text || (atts[0] && atts[0].name) || "新对话").split("\n")[0].slice(0, 40);
 
+  // 思考流: 先挂一条临时的「思考中」, 这一步的工具调用来了就并进那一步, 最终回答来了就留作「作答前的思考」
+  const liveThink = () => {
+    if (!thinkSt) { thinkSt = { tool: "think", thinking: "", live: true }; b.list.push(thinkSt); thinkSt.node = stepNode(thinkSt); b.steps.appendChild(thinkSt.node); }
+    const t = thinkSt.node.querySelector(".think-text");
+    if (t) { const atEnd = t.scrollHeight - t.scrollTop - t.clientHeight < 24; t.textContent = think.trimStart(); if (atEnd) t.scrollTop = t.scrollHeight; }
+  };
+  const takeThink = () => {           // 拿走这一步的思考, 撤掉临时条目
+    const text = think; think = "";
+    if (thinkSt) { thinkSt.node.remove(); b.list.splice(b.list.indexOf(thinkSt), 1); thinkSt = null; }
+    b.thinkingLive = false;
+    return text;
+  };
+  const keepThinkAsFinal = () => {    // 作答前的思考: 折叠后留在步骤最后
+    const text = takeThink();
+    if (text.trim()) { const st = { tool: "think", thinking: text.trim() }; b.list.push(st); b.steps.appendChild(stepNode(st)); }
+  };
   const finish = () => {
     clearInterval(ticker);
     const took = secs(Date.now() - t0);
-    if (nSteps(b)) { setSummary(b, false, took); b.trace.open = false; } else { b.trace.hidden = true; }
+    if (nSteps(b) || hasThinking(b)) { setSummary(b, false, took); b.trace.open = false; } else { b.trace.hidden = true; }
     return took;
   };
   const handle = (ev) => {
     const stick = nearBottom();
     switch (ev.event) {
+      case "thinking":
+        think += ev.text || "";
+        b.thinkingLive = true;
+        liveThink();
+        setSummary(b, true, secs(Date.now() - t0));
+        break;
       case "assistant_delta":
+        if (b.thinkingLive) { b.thinkingLive = false; setSummary(b, true, secs(Date.now() - t0)); }
         draft += ev.text || "";
         ensureDraft().innerHTML = md(draft);
         break;
       case "step": {
         const st = { n: ev.n, tool: ev.tool, args: ev.args, thought: (ev.thought || draft).trim(), ok: null, summary: "" };
+        const tk = takeThink().trim();
+        if (tk) st.thinking = tk;
         dropDraft();
         b.list.push(st); st.node = stepNode(st); b.steps.appendChild(st.node);
         setSummary(b, true, secs(Date.now() - t0));
@@ -440,6 +491,7 @@ async function send(text) {
         break;
       case "done": {
         const answer = ev.answer || draft;
+        keepThinkAsFinal();
         dropDraft();
         const took = finish();
         b.answer.hidden = false;
@@ -449,6 +501,7 @@ async function send(text) {
         break;
       }
       case "error":
+        keepThinkAsFinal();
         dropDraft();
         finish();
         b.answer.hidden = false;
@@ -529,6 +582,7 @@ function openInfo() {
   const sec = (title) => { const s = el("div", "info-sec"); s.appendChild(el("h3", null, title)); body.appendChild(s); return s; };
   const kv = el("dl", "kv");
   [["模型", `${i.provider} / ${i.model}`], ["看图", i.vision ? "支持" : "不支持 (图片按文件处理; 换 qwen-vl-max 等看图模型, 或设 PEH_VISION=on)"],
+    ["思考", i.thinking ? "开启 (每一步先想再动手, 思考过程可展开看)" : "关闭 (设 PEH_THINKING=on 开启; 模型服务不支持时会自动关掉)"],
     ["联网搜索", i.web_search || "未配置"], ["代码执行", { on: "开启", ask: "每次询问", off: "关闭" }[i.python] || i.python],
     ["工作区", i.workspace], ["版本", i.version]].forEach(([k, v]) => { kv.appendChild(el("dt", null, k)); kv.appendChild(el("dd", null, v)); });
   sec("运行配置").appendChild(kv);

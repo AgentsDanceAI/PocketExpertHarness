@@ -171,6 +171,31 @@ Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起
 
 用 `LLM_MODEL` 换模型, 用 `LLM_BASE_URL` 接任何别的兼容服务。模型越强, 多步任务越稳。
 
+## 💭 思考模式
+
+默认开启: 支持思考的模型每一步**先想再动手**。网页里实时显示它在想什么, 想完折叠成「思考 · N 字」, 点开能回看; 终端里用灰字显示。
+
+- **同一轮里把上一步的思考交回给模型**, 它接着往下想, 不用每一步从头再想 (DeepSeek 官方要求这样做; 百炼实测这样更快更稳)。
+- 不支持思考的模型 (比如 `qwen-vl-max`) 第一次请求被拒后自动关掉思考, 照常使用。
+- `PEH_THINKING=auto` (默认, 认得出的服务就开) / `on` (认不出的服务也试着开) / `off`。`peh doctor` 会真调一次, 告诉你思考开没开成。
+
+| 服务 | 怎么打开 | 实测 |
+|---|---|---|
+| 百炼 (DashScope, 含专属网关) | `enable_thinking: true` | ✓ deepseek-v3.2 / qwen-plus / qwen3-max |
+| DeepSeek 官方 | `thinking: {type: enabled}`, 同一轮回传思考 | 按官方文档接, 未实测 |
+| 硅基流动 | `enable_thinking: true` | 按官方文档接, 未实测 |
+| OpenRouter | `reasoning: {enabled: true}` | 按官方文档接, 未实测 |
+| OpenAI / Ollama | 自动模式下不发 (OpenAI 不返回思考内容) | — |
+
+实测 (百炼 deepseek-v3.2, 两道多步任务各跑两轮, 答案全部正确):
+
+| 任务 | 不开思考 | 开思考 |
+|---|---|---|
+| [CSV → 分析报告示例](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report) | 91 秒 / 8 步, 135 秒 / 14 步 | 84 秒 / 9 步, 117 秒 / 11 步 |
+| 1~100000 的回文质数 (Python 计算并核对) | 106 秒 / 8 步, 124 秒 / 11 步 | 91 秒 / 11 步, 50 秒 / 4 步 |
+
+要是开着思考却**不回传**, 同样两道题反而更慢、步数更多 (108 秒 / 11 步、148 秒 / 14 步) —— 所以回传是这个模式的关键。
+
 ## 🖼️ 图片、文件和图表
 
 - **传附件**: 网页里点输入框左边的回形针, 或者直接粘贴截图、把文件拖进来 (单个 ≤ 50MB, 一次最多 10 个)。文件存到工作区 `uploads/`, 表格、文档、代码由模型用工具去读。
