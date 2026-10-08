@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pocketexpert-harness"
-version = "0.3.1"
+version = "0.4.0"
 description = "Open-source personal AI agent - same kernel as PocketExpert AI in production. Self-hosted web chat + CLI, MCP, skills, memory, vision."
 readme = "README.md"
 license = "Apache-2.0"
