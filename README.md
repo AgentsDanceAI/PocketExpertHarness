@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/screenshot.png" alt="网页聊天界面" width="820">
+  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/screenshot-12306.png" alt="网页聊天界面: 一句话查 12306 火车票" width="820">
 </p>
 
 > **不想装? 直接在线体验 (免注册):** <https://agentsdance.ai>
@@ -75,7 +75,7 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 
 **[12306 查火车票](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**：一句话查余票、中转方案、经停站，查的是 12306 的实时数据。配一个 MCP (开源的 12306-mcp, 和口袋专家 AI 旅行专家同一个后台) 就能用，一行代码不用改。
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/answer.png" width="640" alt="问一句「下周五北京去上海下午最快的三趟高铁」, 直接给出车次表">
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/process.png" width="640" alt="它自己分 5 步查: 算日期、查车站代码、查余票、用 Python 筛选排序">
 
 ## 🚀 5 分钟跑起来
 

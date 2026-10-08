@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/screenshot.png" alt="Web chat" width="820">
+  <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/docs/screenshot-12306.png" alt="Web chat: asking about 12306 train tickets" width="820">
 </p>
 
 > **Try it online, no signup:** <https://agentsdance.ai>
@@ -75,7 +75,7 @@ PocketExpertHarness is the harness that runs [PocketExpert AI](https://agentsdan
 
 **[China rail tickets (12306)](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**: ask about seat availability, transfers and stops in one sentence, with live 12306 data — just add one MCP server (the open-source 12306-mcp, the same backend PocketExpert AI uses); no code changes.
 
-<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/answer.png" width="640" alt="One question returns the three fastest afternoon trains from Beijing to Shanghai">
+<img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/process.png" width="640" alt="It works it out in 5 steps: date, station codes, tickets, then filtering with Python">
 
 ## 🚀 Quick start
 
