@@ -84,7 +84,7 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 
 | 智能体 | BrowseComp-ZH | xbench-DeepSearch-2510 |
 |---|---|---|
-| **PocketExpertHarness + Claude Sonnet 5.5 + 智谱搜索** (20 题试跑) | **80%** (16/20) | **70%** (14/20) |
+| **PocketExpertHarness** | **80%** (16/20) | **70%** (14/20) |
 | MiroThinker-1.7 | 75.3 | — |
 | ChatGPT-5 Pro | — | 75+ |
 | 通义 DeepResearch (30B-A3B) | 46.7 | 55.0 |
