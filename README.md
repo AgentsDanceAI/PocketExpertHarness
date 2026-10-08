@@ -67,8 +67,7 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 
 ## 📰 最新动态
 
-- **2026-10-08** 🎉 **v0.3.1** —— **思考模式**: 支持思考的模型每一步先想再动手, 思考过程实时可见; 同一轮把上一步的思考交回给模型, 实测比不开思考更快更稳。详见 [思考模式](#-思考模式)。
-- **2026-10-08** 🎉 **v0.3.0** —— 内核同步线上 7 次更新 (同一步多个工具可并行、回合轨迹、去掉旧的 JSON 动作猜测); 新增可复现的 [CSV → 分析报告示例](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report)。
+- **2026-10-08** 🎉 **v0.3.0** —— **思考模式**: 支持思考的模型每一步先想再动手, 思考过程实时可见, 同一轮把上一步的思考交回给模型, 实测比不开思考更快更稳 (详见 [思考模式](#-思考模式)); 内核同步线上 7 次更新 (同一步多个工具可并行、回合轨迹); 新增可复现的 [CSV → 分析报告示例](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report)。PyPI 上的包是 0.3.1。
 - **2026-09-29** **v0.2.0** —— 网页端能传图片、文件、视频 (点回形针 / 粘贴 / 拖进来), 看图模型直接看图; 回答里的图表和文件直接显示、点开下载, 侧栏「工作区文件」能看全部产出; 发出去立刻读秒 (正在思考 → 第几步 → 用时); 代码块和回答一键复制; 自带 matplotlib 且中文字体配好; 命令行 `peh run -f 文件` / 聊天里 `/file 路径` 带附件。
 - **2026-09-24** 🎉 **v0.1.0 首次开源** —— 内核与口袋专家 AI 线上同一份; 网页聊天 (可以中途插话、随时停止) + 命令行; MCP (stdio / Streamable HTTP)、SKILL.md 技能、长期记忆; DeepSeek / 通义千问 / 硅基流动 / OpenAI / OpenRouter / Ollama 预设; `docker compose` 自带 SearXNG 联网搜索。
 
