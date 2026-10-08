@@ -78,6 +78,26 @@ PocketExpertHarness is the harness that runs [PocketExpert AI](https://agentsdan
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/process.png" width="640" alt="It works it out in 5 steps: date, station codes, tickets, then filtering with Python">
 
+## 📊 Benchmarks (pilot)
+
+A first pass on two Chinese deep-search benchmarks that other research agents report, 20 randomly sampled questions each (fixed seed); this section will be updated with full-set results.
+
+| Agent | BrowseComp-ZH | xbench-DeepSearch-2510 |
+|---|---|---|
+| **PocketExpertHarness + Claude Sonnet 5.5 + Zhipu search** (20-question pilot) | **80%** (16/20) | **70%** (14/20) |
+| MiroThinker-1.7 | 75.3 | — |
+| ChatGPT-5 Pro | — | 75+ |
+| Tongyi DeepResearch (30B-A3B) | 46.7 | 55.0 |
+| OpenAI DeepResearch | 42.9 | — |
+| SuperGrok Expert | — | 40+ |
+
+- **Our setup**: Claude Sonnet 5.5 (thinking off); Zhipu web search (`search_pro_sogou` → `search_pro` → `search_std`); search brake off (`PEH_SEARCH_BRAKE=0`; the default nudges the model to wrap up after 6 searches); default 30-step cap; one run per question. 13–17 searches per question on average; median time 2.3 min (BrowseComp-ZH) and 38 s (xbench).
+- **Grading**: each benchmark's official grading prompt verbatim, judged by qwen3-max (the originals use GPT-4o / Gemini).
+- **Reading the table**: a 20-question sample carries roughly ±10 points of error; other numbers come from their own reports or official boards with different question counts, sampling (some average several runs) and judges, so compare loosely.
+- **Answered without searching**: 4 BrowseComp-ZH questions (3 correct) and 1 xbench question (correct). Both sets were published in 2025, so the model may have seen the answers; counting only questions it searched for: BrowseComp-ZH 13/16, xbench 13/19.
+
+Sources: [Tongyi DeepResearch report](https://arxiv.org/abs/2510.24701) · [MiroThinker](https://github.com/MiroMindAI/MiroThinker) · [BrowseComp-ZH paper](https://arxiv.org/abs/2504.19314) · [xbench DeepSearch 2510](https://www.hongshan.com/article/deepsearch%E9%A2%98%E5%BA%93%E5%92%8C%E6%A6%9C%E5%8D%95%E6%9B%B4%E6%96%B0%EF%BC%8C%E6%9C%80%E6%96%B0%E9%A2%98%E5%BA%93%E5%B7%B2%E5%BC%80%E6%BA%90%EF%BD%9Cxbench%E6%9C%88%E6%8A%A5/)
+
 ## 🚀 Quick start
 
 ### 0. Get a model key

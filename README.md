@@ -78,6 +78,26 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/process.png" width="640" alt="它自己分 5 步查: 算日期、查车站代码、查余票、用 Python 筛选排序">
 
+## 📊 评测成绩 (试跑)
+
+用别家深度搜索智能体常报的两个中文评测, 各随机抽 20 题 (固定种子) 先跑了一轮; 全量结果出来后更新这里。
+
+| 智能体 | BrowseComp-ZH | xbench-DeepSearch-2510 |
+|---|---|---|
+| **PocketExpertHarness + Claude Sonnet 5.5 + 智谱搜索** (20 题试跑) | **80%** (16/20) | **70%** (14/20) |
+| MiroThinker-1.7 | 75.3 | — |
+| ChatGPT-5 Pro | — | 75+ |
+| 通义 DeepResearch (30B-A3B) | 46.7 | 55.0 |
+| OpenAI DeepResearch | 42.9 | — |
+| SuperGrok Expert | — | 40+ |
+
+- **我们的配置**: 模型 Claude Sonnet 5.5 (不开思考); 搜索用智谱 (`search_pro_sogou` → `search_pro` → `search_std` 依次兜底); 关掉搜索刹车 (`PEH_SEARCH_BRAKE=0`, 默认是搜 6 次提醒收尾); 步数上限 30 (默认); 每题只跑一次。平均每题搜 13~17 次, 中位用时 BrowseComp-ZH 2.3 分钟、xbench 38 秒。
+- **判分**: 用两个评测官方的评分提示词原文, 评委模型 qwen3-max (官方用 GPT-4o / Gemini)。
+- **怎么看这张表**: 20 题样本误差大 (约 ±10 个百分点); 别家的数字来自各自的报告或官方榜单, 题量、抽样方式 (有的取多次平均)、评委都不一样, 只能粗略对照。
+- **有几题没联网就答了**: BrowseComp-ZH 4 题 (对 3)、xbench 1 题 (对 1)。两个题库都是 2025 年公开的, 模型可能见过答案; 只算联网查过的题: BrowseComp-ZH 13/16, xbench 13/19。
+
+别家成绩出处: [通义 DeepResearch 技术报告](https://arxiv.org/abs/2510.24701) · [MiroThinker](https://github.com/MiroMindAI/MiroThinker) · [BrowseComp-ZH 论文](https://arxiv.org/abs/2504.19314) · [xbench DeepSearch 2510 榜单](https://www.hongshan.com/article/deepsearch%E9%A2%98%E5%BA%93%E5%92%8C%E6%A6%9C%E5%8D%95%E6%9B%B4%E6%96%B0%EF%BC%8C%E6%9C%80%E6%96%B0%E9%A2%98%E5%BA%93%E5%B7%B2%E5%BC%80%E6%BA%90%EF%BD%9Cxbench%E6%9C%88%E6%8A%A5/)
+
 ## 🚀 5 分钟跑起来
 
 ### 0. 准备一个模型 Key
