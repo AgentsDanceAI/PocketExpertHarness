@@ -4,7 +4,7 @@
 
 Ask about Chinese train tickets in one sentence — seat availability, transfer options and stops — all from **live 12306 data**.
 
-It uses the open-source [12306-mcp](https://github.com/Joooook/12306-mcp) (MIT), the same backend that powers the train-ticket tool in [PocketExpert AI](https://agentsdance.ai)'s travel expert. PocketExpertHarness needs no code changes: just add one MCP server.
+PocketExpertHarness **ships with it built in**: the open-source [12306-mcp](https://github.com/Joooook/12306-mcp) (MIT), the same backend that powers the train-ticket tool in [PocketExpert AI](https://agentsdance.ai)'s travel expert.
 
 ![One question, the three fastest trains](answer.png)
 
@@ -16,12 +16,11 @@ For the question above it took 5 steps, thinking before each: get today's date (
 
 ## Run it yourself
 
-1. Install Node.js 18+ (for `npx`). The Docker image already includes it.
-2. Put [mcp.json](mcp.json) in place: next to where you run `peh` (or set `PEH_MCP_CONFIG`), or as `config/mcp.json` for Docker, then `docker compose restart`.
-3. Run `peh doctor`; `✓ MCP 12306: 8 个工具` means it is connected. The first run downloads 12306-mcp (about 30 seconds).
-4. Ask in the web UI or terminal, e.g. `peh run "G25 次列车经停哪些站？几点到南京南？"` (which stations does train G25 stop at, and when does it reach Nanjing South?).
+1. **Docker**: nothing to do, it is preinstalled. **Local** (`uvx` / `pip`): install [Node.js](https://nodejs.org) 20+; it is started with `npx` automatically (the first download takes about 30 seconds and uses a China npm mirror by default).
+2. Run `peh doctor`; `✓ MCP 12306 (内置: 查火车票): 8 个工具` means it is ready, otherwise that line tells you what is missing.
+3. Ask in the web UI or terminal, e.g. `peh run "G25 次列车经停哪些站？几点到南京南？"` (which stations does train G25 stop at, and when does it reach Nanjing South?).
 
-The `npm_config_registry` line points `npx` at a mirror in China; delete it if you are elsewhere.
+To turn it off, set `PEH_BUILTIN_MCP=off` or add `"12306": {"disabled": true}` to `mcp.json`. Outside China, set `npm_config_registry` to use another npm registry.
 
 ## Good to know
 

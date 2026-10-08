@@ -161,7 +161,7 @@ class Harness:
         self.model = model or ChatModel(settings)
         self.http = http_client or httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0))
         self.memory = Memory(settings.home)
-        self.mcp = MCPManager(settings.mcp_config)
+        self.mcp = MCPManager(settings.mcp_config, builtins=settings.builtin_mcp)
         self.skills: dict = {}
         self.registry = ToolRegistry()
         self._confirm_python = confirm_python

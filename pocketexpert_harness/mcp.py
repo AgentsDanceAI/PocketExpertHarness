@@ -10,6 +10,9 @@
 
 工具在模型眼里叫 ``mcp__<服务名>__<工具名>``。stdio 子进程只继承 PATH/HOME 这类基础环境变量加上配置里写的 env,
 不会把模型的 API Key 带过去。旧式 SSE 传输 (2024-11-05 版的 /sse 端点) 不支持。
+
+装上就有的服务 (BUILTIN): 查火车票 (12306-mcp, MIT, 只查 12306 公开余票 / 中转 / 经停, 不能买票)。
+本机有 Node.js 20+ 就自动启用; mcp.json 里同名的会覆盖它 (写 {"disabled": true} 单独关), PEH_BUILTIN_MCP=off 全关。
 """
 from __future__ import annotations
 
@@ -18,6 +21,8 @@ import json
 import logging
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
@@ -35,6 +40,40 @@ MAX_TOOL_PAGES = 20
 STDIO_ENV_KEEP = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "LC_ALL", "TMPDIR", "TZ",
                   "APPDATA", "LOCALAPPDATA", "USERPROFILE", "SYSTEMROOT", "PROGRAMFILES", "NODE_PATH", "NVM_DIR")
 _ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+#: 内置的查火车票服务 (与口袋专家 AI 旅行专家同一个后台, 钉版本)。它依赖的 commander 14 要求 Node.js 20+。
+TRAIN_MCP_PACKAGE = "12306-mcp@0.3.10"
+TRAIN_MCP_NODE_MAJOR = 20
+#: 第一次要用 npx 下载 (国内镜像约半分钟), 所以内置服务的启动超时放宽
+BUILTIN_START_TIMEOUT = 120.0
+#: 12306-mcp 一启动就去 12306 拉车站表, 12306 偶尔不应答时进程直接退出 —— 内置服务失败后再试一次
+BUILTIN_FAILED_HINT = "查火车票服务没起来 (多半是一时连不上 12306, 重启再试)"
+
+
+def _node_major() -> Optional[int]:
+    node = shutil.which("node")
+    if not node:
+        return None
+    try:
+        out = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=5).stdout.strip()
+        return int(out.lstrip("v").split(".")[0])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def builtin_servers() -> tuple[dict, dict]:
+    """装上就有的 MCP 服务: 返回 (能启动的 {名字: 配置}, 跳过的 {名字: 原因})。"""
+    if shutil.which("12306-mcp"):           # Docker 镜像里预装好了, 不用下载
+        return {"12306": {"command": "12306-mcp", "args": [], "builtin": True, "timeout": BUILTIN_START_TIMEOUT, "retries": 1}}, {}
+    if not shutil.which("npx"):
+        return {}, {"12306": f"查火车票需要 Node.js {TRAIN_MCP_NODE_MAJOR}+ (没找到 npx), 装好后重启就能用"}
+    major = _node_major()
+    if major is not None and major < TRAIN_MCP_NODE_MAJOR:
+        return {}, {"12306": f"查火车票需要 Node.js {TRAIN_MCP_NODE_MAJOR}+ (现在是 {major}), 升级后重启就能用"}
+    # 国内默认走 npm 镜像; 自己设了 npm_config_registry 就用自己的
+    registry = os.environ.get("npm_config_registry") or os.environ.get("NPM_CONFIG_REGISTRY") or "https://registry.npmmirror.com"
+    return {"12306": {"command": "npx", "args": ["-y", TRAIN_MCP_PACKAGE], "env": {"npm_config_registry": registry},
+                      "builtin": True, "timeout": BUILTIN_START_TIMEOUT, "retries": 1}}, {}
 
 
 class MCPError(RuntimeError):
@@ -344,34 +383,51 @@ class MCPServer:
 
 
 class MCPManager:
-    def __init__(self, config_path: Optional[Path] = None, *, http_client: Optional[httpx.AsyncClient] = None):
+    def __init__(self, config_path: Optional[Path] = None, *, http_client: Optional[httpx.AsyncClient] = None,
+                 builtins: bool = False):
         self.config_path = config_path
+        self.builtins = builtins
         self.servers: dict[str, MCPServer] = {}
         self.failed: dict[str, str] = {}
+        self.skipped: dict[str, str] = {}
         self._http_client = http_client
 
     def load(self) -> dict:
-        if not self.config_path or not Path(self.config_path).is_file():
-            return {}
-        data = json.loads(Path(self.config_path).read_text(encoding="utf-8"))
-        return {k: v for k, v in (data.get("mcpServers") or {}).items() if isinstance(v, dict) and not v.get("disabled")}
+        specs: dict = {}
+        if self.builtins:
+            specs, self.skipped = builtin_servers()
+        if self.config_path and Path(self.config_path).is_file():
+            data = json.loads(Path(self.config_path).read_text(encoding="utf-8"))
+            for k, v in (data.get("mcpServers") or {}).items():
+                if isinstance(v, dict):             # 同名的覆盖内置的 (含 disabled: 关掉内置服务)
+                    specs[k] = v
+                    self.skipped.pop(k, None)
+        return {k: v for k, v in specs.items() if not v.get("disabled")}
 
     async def start(self, timeout: float = 30.0) -> None:
         specs = self.load()
 
         async def _one(name: str, spec: dict) -> None:
-            try:
-                srv = MCPServer(name, spec, http_client=self._http_client)
-            except MCPError as e:
-                self.failed[name] = str(e)
-                return
-            try:
-                await asyncio.wait_for(srv.connect(timeout), timeout=timeout + 5)
-                self.servers[name] = srv
-            except Exception as e:      # noqa: BLE001 — 一个服务起不来不影响别的
-                self.failed[name] = f"{type(e).__name__}: {str(e)[:300]}"
-                logger.warning("MCP 服务 %s 启动失败: %s", name, e)
-                await srv.close()
+            t = float(spec.get("timeout") or timeout)
+            tries = 1 + int(spec.get("retries") or 0)
+            for attempt in range(tries):
+                try:
+                    srv = MCPServer(name, spec, http_client=self._http_client)
+                except MCPError as e:
+                    self.failed[name] = str(e)
+                    return
+                try:
+                    await asyncio.wait_for(srv.connect(t), timeout=t + 5)
+                    self.servers[name] = srv
+                    self.failed.pop(name, None)
+                    return
+                except Exception as e:      # noqa: BLE001 — 一个服务起不来不影响别的
+                    await srv.close()
+                    detail = f"{type(e).__name__}: {str(e)[:300]}"
+                    self.failed[name] = f"{BUILTIN_FAILED_HINT} — {detail}" if spec.get("builtin") else detail
+                    logger.warning("MCP 服务 %s 启动失败 (第 %d/%d 次): %s", name, attempt + 1, tries, e)
+                    if attempt + 1 < tries:
+                        await asyncio.sleep(2)
 
         await asyncio.gather(*(_one(n, s) for n, s in specs.items()))
 
@@ -391,9 +447,11 @@ class MCPManager:
         return out
 
     def status(self) -> list[dict]:
-        rows = [{"name": n, "status": s.status, "tools": len(s.tools), "server": s.server_info.get("name", "")}
-                for n, s in self.servers.items()]
-        rows += [{"name": n, "status": "failed", "error": e, "tools": 0} for n, e in self.failed.items()]
+        rows = [{"name": n, "status": s.status, "tools": len(s.tools), "server": s.server_info.get("name", ""),
+                 "builtin": bool(s.spec.get("builtin"))} for n, s in self.servers.items()]
+        rows += [{"name": n, "status": "failed", "error": e, "tools": 0, "builtin": e.startswith(BUILTIN_FAILED_HINT)}
+                 for n, e in self.failed.items()]
+        rows += [{"name": n, "status": "skipped", "error": e, "tools": 0, "builtin": True} for n, e in self.skipped.items()]
         return rows
 
     async def close(self) -> None:

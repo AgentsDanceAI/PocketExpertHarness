@@ -4,7 +4,7 @@
 
 用一句话问火车票：余票、中转方案、经停站，查的都是 12306 的**实时数据**。
 
-接的是开源的 [12306-mcp](https://github.com/Joooook/12306-mcp)（MIT），和[口袋专家 AI](https://agentsdance.ai) 旅行专家「查火车票」用的是同一个后台。PocketExpertHarness 一行代码都不用改，配一个 MCP 就行。
+PocketExpertHarness **装好就带着这个能力**：内置了开源的 [12306-mcp](https://github.com/Joooook/12306-mcp)（MIT），和[口袋专家 AI](https://agentsdance.ai) 旅行专家「查火车票」用的是同一个后台。
 
 ![问一句, 直接给出最快的三趟](answer.png)
 
@@ -16,12 +16,10 @@
 
 ## 自己跑一遍
 
-1. 需要 Node.js 18 以上（有 `npx` 命令）。用 Docker 跑的话镜像里已经自带。
-2. 把 [mcp.json](mcp.json) 放好：
-   - 本机：复制到你运行 `peh` 的目录下（或设 `PEH_MCP_CONFIG=它的路径`）
-   - Docker：复制成 `config/mcp.json`，再 `docker compose restart`
-3. 跑 `peh doctor`，看到 `✓ MCP 12306: 8 个工具` 就接好了。第一次会下载 12306-mcp，约半分钟。
-4. 在网页或终端里直接问，比如：
+1. **Docker 版**：什么都不用做，镜像里已经装好。
+   **本机版** (`uvx` / `pip`)：装好 [Node.js](https://nodejs.org) 20 以上就行，开源版启动时自动用 `npx` 拉起它 (第一次下载约半分钟，默认走国内 npm 镜像)。
+2. 跑 `peh doctor`，看到 `✓ MCP 12306 (内置: 查火车票): 8 个工具` 就能用了；缺 Node.js 时这一行会告诉你缺什么。
+3. 在网页或终端里直接问，比如：
 
    - 下周五从北京去上海，下午 1 点以后出发的高铁，二等座有票的挑最快的三趟，列出车次、出发到达时间、历时和二等座余票。
    - 明天从杭州去西安，没有合适直达的话给我两个中转方案，写清在哪换乘、换乘等多久、总历时。
@@ -29,7 +27,7 @@
 
    命令行一问一答：`peh run "G25 次列车经停哪些站？几点到南京南？"`
 
-`mcp.json` 里的 `npm_config_registry` 让 `npx` 从国内镜像下载，海外网络可以删掉这一行。
+不想要它：设 `PEH_BUILTIN_MCP=off`，或在 `mcp.json` 里写 `"12306": {"disabled": true}`。海外网络想换 npm 源：设环境变量 `npm_config_registry`。
 
 ## 实测
 

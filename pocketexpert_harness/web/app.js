@@ -592,8 +592,12 @@ function openInfo() {
   i.skills.forEach((s) => { const p = el("p"); p.appendChild(el("strong", null, s.name)); p.appendChild(document.createTextNode(" — " + s.description)); ss.appendChild(p); });
   const ms = sec(`MCP 服务 (${i.mcp.length})`);
   if (!i.mcp.length) ms.appendChild(el("p", "panel-note", "在 mcp.json 里配置 (格式与 Claude Desktop 相同)。"));
-  i.mcp.forEach((m) => ms.appendChild(el("p", m.status === "failed" ? "status-bad" : null,
-    m.status === "failed" ? `${m.name}: 没连上 — ${m.error}` : `${m.name}: ${m.tools} 个工具`)));
+  i.mcp.forEach((m) => {
+    const name = m.name + (m.builtin ? " (内置: 查火车票)" : "");
+    if (m.status === "failed") ms.appendChild(el("p", "status-bad", `${name}: 没连上 — ${m.error}`));
+    else if (m.status === "skipped") ms.appendChild(el("p", "panel-note", `${name}: 没启用 — ${m.error}`));
+    else ms.appendChild(el("p", null, `${name}: ${m.tools} 个工具`));
+  });
   $("#infoPanel").showModal();
 }
 

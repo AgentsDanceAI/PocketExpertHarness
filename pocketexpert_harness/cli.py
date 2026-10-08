@@ -269,11 +269,14 @@ async def cmd_doctor(s: Settings, _args) -> int:
         if not rows:
             print(f"· MCP: 未配置 ({s.mcp_config or '没有 mcp.json'})")
         for row in rows:
+            label = f"MCP {row['name']}" + (" (内置: 查火车票)" if row.get("builtin") else "")
             if row["status"] == "ready":
-                print(f"✓ MCP {row['name']}: {row['tools']} 个工具")
+                print(f"✓ {label}: {row['tools']} 个工具")
+            elif row["status"] == "skipped":       # 内置服务缺 Node.js: 不算配置错误
+                print(f"· {label}: {row.get('error')}")
             else:
                 ok = False
-                print(st.red(f"✗ MCP {row['name']}: {row.get('error')}"))
+                print(st.red(f"✗ {label}: {row.get('error')}"))
     finally:
         await h.close()
     return 0 if ok else 1
@@ -342,7 +345,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if cmd == "mcp":
         async def _mcp() -> int:
             from pocketexpert_harness.mcp import MCPManager
-            m = MCPManager(s.mcp_config)
+            m = MCPManager(s.mcp_config, builtins=s.builtin_mcp)
             await m.start()
             for row in m.status():
                 print(row)

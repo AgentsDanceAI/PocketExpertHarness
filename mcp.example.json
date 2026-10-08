@@ -1,15 +1,5 @@
 {
   "mcpServers": {
-    "12306": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "12306-mcp@0.3.10"
-      ],
-      "env": {
-        "npm_config_registry": "https://registry.npmmirror.com"
-      }
-    },
     "filesystem": {
       "command": "npx",
       "args": [

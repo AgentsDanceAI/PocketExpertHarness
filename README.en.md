@@ -67,13 +67,13 @@ PocketExpertHarness is the harness that runs [PocketExpert AI](https://agentsdan
 
 ## 📰 What's new
 
-- **2026-10-08** 🎉 **v0.3.0** — **thinking mode**: reasoning models think before every step with the reasoning streamed live, and passing it back within a turn made multi-step tasks faster in our tests (see [Thinking mode](#-thinking-mode)); kernel synced with 7 production updates (parallel tool calls within a step, turn traces); a [China rail tickets (12306) example](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306): one MCP server and you can ask about train tickets.
+- **2026-10-08** 🎉 **v0.3.0** — **thinking mode**: reasoning models think before every step with the reasoning streamed live, and passing it back within a turn made multi-step tasks faster in our tests (see [Thinking mode](#-thinking-mode)); kernel synced with 7 production updates (parallel tool calls within a step, turn traces); a [China rail tickets (12306) example](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306): ask about seats, transfers and stops in one sentence.
 - **2026-09-29** **v0.2.0** — upload images, files and videos in the web UI (paperclip, paste or drag-and-drop); vision models see images directly; charts and files in answers render inline and download with one click, plus a Workspace files panel; a live timer from the moment you send (thinking → step N → total time); copy buttons for answers and code blocks; matplotlib bundled with CJK fonts preconfigured; `peh run -f FILE` and `/file PATH` in terminal chat.
 - **2026-09-24** 🎉 **v0.1.0, first open-source release** — the same kernel as PocketExpert AI in production; web chat (steer mid-run, stop any time) and CLI; MCP (stdio / Streamable HTTP), SKILL.md skills, long-term memory; presets for DeepSeek / Qwen / SiliconFlow / OpenAI / OpenRouter / Ollama; `docker compose` ships SearXNG for web search.
 
 ## 🧪 An example
 
-**[China rail tickets (12306)](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**: ask about seat availability, transfers and stops in one sentence, with live 12306 data — just add one MCP server (the open-source 12306-mcp, the same backend PocketExpert AI uses); no code changes.
+**[China rail tickets (12306)](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**: ask about seat availability, transfers and stops in one sentence, with live 12306 data — **built in** (the open-source 12306-mcp, the same backend PocketExpert AI uses; needs Node.js 20+ locally, preinstalled in Docker).
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/process.png" width="640" alt="It works it out in 5 steps: date, station codes, tickets, then filtering with Python">
 
@@ -180,7 +180,7 @@ Attach files in the web UI with the paperclip, by pasting, or by dragging them i
 
 Put servers in `config/mcp.json` (Docker) or `./mcp.json` (local), Claude Desktop format. stdio and Streamable HTTP are supported; `${ENV}` references are expanded. stdio servers only inherit basic variables such as PATH and HOME plus the `env` you set, never the model API key.
 
-Ready-made example: [China rail tickets (12306)](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306) — drop in its `mcp.json` and ask about trains.
+**One is built in: China rail tickets** ([12306-mcp](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306), lookup only). It starts automatically when Node.js 20+ is installed and is preinstalled in Docker; turn it off with `PEH_BUILTIN_MCP=off` or `"12306": {"disabled": true}` in `mcp.json`.
 
 ## 📚 Skills
 

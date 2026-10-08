@@ -6,9 +6,11 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL} PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 \
     PEH_IN_CONTAINER=1 PEH_HOME=/data PEH_WORKSPACE=/data/workspace PEH_HOST=0.0.0.0 PEH_PORT=8080
 
 # Node 让 npx 类 MCP 服务 (如 @modelcontextprotocol/server-filesystem) 能直接用; 数据分析常用库给 run_python
+# 内置的查火车票服务 (12306-mcp) 预装好, 启动不用下载; 版本与 pocketexpert_harness/mcp.py 的 TRAIN_MCP_PACKAGE 一致
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm fonts-noto-cjk ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
- && pip install pandas matplotlib openpyxl
+ && pip install pandas matplotlib openpyxl \
+ && npm install -g --omit=dev --ignore-scripts 12306-mcp@0.3.10 && npm cache clean --force
 
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE NOTICE ./

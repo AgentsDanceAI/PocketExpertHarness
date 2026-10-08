@@ -67,13 +67,13 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 
 ## 📰 最新动态
 
-- **2026-10-08** 🎉 **v0.3.0** —— **思考模式**: 支持思考的模型每一步先想再动手, 思考过程实时可见, 同一轮把上一步的思考交回给模型, 实测比不开思考更快更稳 (详见 [思考模式](#-思考模式)); 内核同步线上 7 次更新 (同一步多个工具可并行、回合轨迹); 新增 [12306 查火车票示例](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306): 配一个 MCP 就能一句话查余票、中转、经停。
+- **2026-10-08** 🎉 **v0.3.0** —— **思考模式**: 支持思考的模型每一步先想再动手, 思考过程实时可见, 同一轮把上一步的思考交回给模型, 实测比不开思考更快更稳 (详见 [思考模式](#-思考模式)); 内核同步线上 7 次更新 (同一步多个工具可并行、回合轨迹); 新增 [12306 查火车票示例](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306): 一句话查余票、中转、经停。
 - **2026-09-29** **v0.2.0** —— 网页端能传图片、文件、视频 (点回形针 / 粘贴 / 拖进来), 看图模型直接看图; 回答里的图表和文件直接显示、点开下载, 侧栏「工作区文件」能看全部产出; 发出去立刻读秒 (正在思考 → 第几步 → 用时); 代码块和回答一键复制; 自带 matplotlib 且中文字体配好; 命令行 `peh run -f 文件` / 聊天里 `/file 路径` 带附件。
 - **2026-09-24** 🎉 **v0.1.0 首次开源** —— 内核与口袋专家 AI 线上同一份; 网页聊天 (可以中途插话、随时停止) + 命令行; MCP (stdio / Streamable HTTP)、SKILL.md 技能、长期记忆; DeepSeek / 通义千问 / 硅基流动 / OpenAI / OpenRouter / Ollama 预设; `docker compose` 自带 SearXNG 联网搜索。
 
 ## 🧪 先看一个例子
 
-**[12306 查火车票](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**：一句话查余票、中转方案、经停站，查的是 12306 的实时数据。配一个 MCP (开源的 12306-mcp, 和口袋专家 AI 旅行专家同一个后台) 就能用，一行代码不用改。
+**[12306 查火车票](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**：一句话查余票、中转方案、经停站，查的是 12306 的实时数据。**装好就能用** (内置开源的 12306-mcp, 和口袋专家 AI 旅行专家同一个后台; 本机需要 Node.js 20+, Docker 版已装好)。
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/process.png" width="640" alt="它自己分 5 步查: 算日期、查车站代码、查余票、用 Python 筛选排序">
 
@@ -230,7 +230,7 @@ Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起
 }
 ```
 
-现成的例子: [12306 查火车票](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306), 把它的 `mcp.json` 放好就能问火车票。
+**内置一个: 查火车票** ([12306-mcp](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306), 只查不买)。本机有 Node.js 20+ 就自动启用, Docker 版已预装; 不要它就设 `PEH_BUILTIN_MCP=off`, 或在 `mcp.json` 里写 `"12306": {"disabled": true}`。
 
 支持 stdio 与 Streamable HTTP 两种传输; 值里的 `${ENV}` 会从环境变量取。stdio 子进程只继承 PATH、HOME 这类基础变量加上你写的 `env`, 不会把模型的 API Key 带过去。
 

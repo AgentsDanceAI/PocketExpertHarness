@@ -78,6 +78,8 @@ class Settings:
     brave_api_key: str = field(default="", repr=False)
 
     mcp_config: Path | None = None
+    #: 装上就有的 MCP 服务 (查火车票)。from_env 默认开 (PEH_BUILTIN_MCP=off 关); 直接构造 Settings 默认不开, 免得意外起子进程
+    builtin_mcp: bool = False
     skills_dirs: list[Path] = field(default_factory=list)
     access_token: str = field(default="", repr=False)
     agent_name: str = "PocketExpert Harness"
@@ -116,6 +118,7 @@ class Settings:
             tavily_api_key=_env("TAVILY_API_KEY"),
             brave_api_key=_env("BRAVE_API_KEY"),
             mcp_config=mcp_path,
+            builtin_mcp=_env("PEH_BUILTIN_MCP", "on").lower() not in ("off", "0", "false", "no"),
             skills_dirs=dirs,
             access_token=_env("PEH_ACCESS_TOKEN"),
             agent_name=_env("PEH_AGENT_NAME", "PocketExpert Harness"),
