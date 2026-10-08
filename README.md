@@ -71,13 +71,11 @@ PocketExpertHarness 就是 [口袋专家 AI](https://agentsdance.ai) 线上每�
 - **2026-09-29** **v0.2.0** —— 网页端能传图片、文件、视频 (点回形针 / 粘贴 / 拖进来), 看图模型直接看图; 回答里的图表和文件直接显示、点开下载, 侧栏「工作区文件」能看全部产出; 发出去立刻读秒 (正在思考 → 第几步 → 用时); 代码块和回答一键复制; 自带 matplotlib 且中文字体配好; 命令行 `peh run -f 文件` / 聊天里 `/file 路径` 带附件。
 - **2026-09-24** 🎉 **v0.1.0 首次开源** —— 内核与口袋专家 AI 线上同一份; 网页聊天 (可以中途插话、随时停止) + 命令行; MCP (stdio / Streamable HTTP)、SKILL.md 技能、长期记忆; DeepSeek / 通义千问 / 硅基流动 / OpenAI / OpenRouter / Ollama 预设; `docker compose` 自带 SearXNG 联网搜索。
 
-## 🧪 先看两个例子
+## 🧪 先看一个例子
 
 **[12306 查火车票](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**：一句话查余票、中转方案、经停站，查的是 12306 的实时数据。配一个 MCP (开源的 12306-mcp, 和口袋专家 AI 旅行专家同一个后台) 就能用，一行代码不用改。
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/answer.png" width="640" alt="问一句「下周五北京去上海下午最快的三趟高铁」, 直接给出车次表">
-
-**[12 行 CSV → 汇总表、图表和中文报告](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report)**：合成输入、完整提示词、一次真实运行的参考输出，能自己复算每个数字。
 
 ## 🚀 5 分钟跑起来
 
@@ -195,7 +193,7 @@ Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起
 
 | 任务 | 不开思考 | 开思考 |
 |---|---|---|
-| [CSV → 分析报告示例](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report) | 91 秒 / 8 步, 135 秒 / 14 步 | 84 秒 / 9 步, 117 秒 / 11 步 |
+| 12 行销售 CSV → 汇总表、图表和报告 | 91 秒 / 8 步, 135 秒 / 14 步 | 84 秒 / 9 步, 117 秒 / 11 步 |
 | 1~100000 的回文质数 (Python 计算并核对) | 106 秒 / 8 步, 124 秒 / 11 步 | 91 秒 / 11 步, 50 秒 / 4 步 |
 
 要是开着思考却**不回传**, 同样两道题反而更慢、步数更多 (108 秒 / 11 步、148 秒 / 14 步) —— 所以回传是这个模式的关键。

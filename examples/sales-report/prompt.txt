@@ -1,8 +1,0 @@
-This is a reproducible demo using SYNTHETIC sales data, not real customers.
-Read sales.csv in the workspace. Use Python standard-library csv and matplotlib (already installed); do not install packages or use the network.
-1. Check row count, missing values and duplicate (week,channel) pairs.
-2. Calculate total revenue and orders by channel and average order value.
-3. Save summary.csv with exact columns channel,orders,revenue_cny,average_order_value_cny. Round only average order value to 2 decimal places. Include a TOTAL row.
-4. Save revenue.png: a clean bar chart of total revenue by channel, English labels, title 'Synthetic sales | 4 weeks', with values on bars. No invented data.
-5. Save report.md in Chinese with verified totals, latest-week versus first-week revenue growth by channel, 3 observations and 2 next steps. Clearly label all data synthetic. Do not claim causation or real business impact.
-6. Return links to the three generated files. You may use run_python and workspace file tools. Keep your work inside this workspace.

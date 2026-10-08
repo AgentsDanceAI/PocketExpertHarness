@@ -71,13 +71,11 @@ PocketExpertHarness is the harness that runs [PocketExpert AI](https://agentsdan
 - **2026-09-29** **v0.2.0** — upload images, files and videos in the web UI (paperclip, paste or drag-and-drop); vision models see images directly; charts and files in answers render inline and download with one click, plus a Workspace files panel; a live timer from the moment you send (thinking → step N → total time); copy buttons for answers and code blocks; matplotlib bundled with CJK fonts preconfigured; `peh run -f FILE` and `/file PATH` in terminal chat.
 - **2026-09-24** 🎉 **v0.1.0, first open-source release** — the same kernel as PocketExpert AI in production; web chat (steer mid-run, stop any time) and CLI; MCP (stdio / Streamable HTTP), SKILL.md skills, long-term memory; presets for DeepSeek / Qwen / SiliconFlow / OpenAI / OpenRouter / Ollama; `docker compose` ships SearXNG for web search.
 
-## 🧪 Two examples
+## 🧪 An example
 
 **[China rail tickets (12306)](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/12306)**: ask about seat availability, transfers and stops in one sentence, with live 12306 data — just add one MCP server (the open-source 12306-mcp, the same backend PocketExpert AI uses); no code changes.
 
 <img src="https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/examples/12306/answer.png" width="640" alt="One question returns the three fastest afternoon trains from Beijing to Shanghai">
-
-**[12 CSV rows → summary, chart and report](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report)**: synthetic input, the complete prompt and actual reference outputs you can verify yourself.
 
 ## 🚀 Quick start
 
