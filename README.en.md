@@ -67,6 +67,7 @@ PocketExpertHarness is the harness that runs [PocketExpert AI](https://agentsdan
 
 ## 📰 What's new
 
+- **2026-10-08** **v0.2.1** — kernel synced with 7 production updates (parallel tool calls within a step, turn traces, the old JSON-action guessing removed); a reproducible [CSV-to-report example](https://github.com/AgentsDanceAI/PocketExpertHarness/tree/main/examples/sales-report).
 - **2026-09-29** **v0.2.0** — upload images, files and videos in the web UI (paperclip, paste or drag-and-drop); vision models see images directly; charts and files in answers render inline and download with one click, plus a Workspace files panel; a live timer from the moment you send (thinking → step N → total time); copy buttons for answers and code blocks; matplotlib bundled with CJK fonts preconfigured; `peh run -f FILE` and `/file PATH` in terminal chat.
 - **2026-09-24** 🎉 **v0.1.0, first open-source release** — the same kernel as PocketExpert AI in production; web chat (steer mid-run, stop any time) and CLI; MCP (stdio / Streamable HTTP), SKILL.md skills, long-term memory; presets for DeepSeek / Qwen / SiliconFlow / OpenAI / OpenRouter / Ollama; `docker compose` ships SearXNG for web search.
 
