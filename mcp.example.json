@@ -1,12 +1,28 @@
 {
   "mcpServers": {
+    "12306": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "12306-mcp@0.3.10"
+      ],
+      "env": {
+        "npm_config_registry": "https://registry.npmmirror.com"
+      }
+    },
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data/workspace"]
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/data/workspace"
+      ]
     },
     "remote-example": {
       "url": "https://example.com/mcp",
-      "headers": { "Authorization": "Bearer ${REMOTE_MCP_TOKEN}" },
+      "headers": {
+        "Authorization": "Bearer ${REMOTE_MCP_TOKEN}"
+      },
       "disabled": true
     }
   }
