@@ -136,9 +136,10 @@ uv tool install pocketexpert-harness     # 或者 pipx install / pip install poc
 | `peh run -f 报表.xlsx "总结一下"` | 带附件问 (可以写多个 `-f`); 终端聊天里用 `/file 路径` |
 | `peh doctor` | 检查模型、搜索、MCP 有没有配好 |
 
-**联网搜索 (本机方式要自己接一个, 不接也能用, 只是不能上网搜)** —— 三选一:
+**联网搜索 (本机方式要自己接一个, 不接也能用, 只是不能上网搜)** —— 四选一:
 
-- **自己起一个 SearXNG (免费, 不用 Key, 推荐)**: 需要 Docker, 先取一份现成的配置再起:
+- **智谱联网搜索 (国内推荐, 中文结果好)**: 在 [智谱开放平台](https://open.bigmodel.cn) 拿 Key, `export ZHIPU_API_KEY=...`; 默认用最便宜的 `search_std` (约 ¥0.01/次), 想换引擎设 `ZHIPU_SEARCH_ENGINE` (可写多个, 逗号分隔, 依次兜底)。口袋专家 AI 线上用的就是它。
+- **自己起一个 SearXNG (免费, 不用 Key)**: 它转发百度 / 必应等公开搜索引擎, 搜多了可能被验证码或限流拦住, 结果会变差。需要 Docker, 先取一份现成的配置再起: 需要 Docker, 先取一份现成的配置再起:
   ```bash
   curl -fsSLo searxng.yml https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/deploy/searxng/settings.yml
   docker run -d --name searxng -p 127.0.0.1:8888:8080 -e SEARXNG_SECRET=换一串随机字符 \
@@ -148,7 +149,7 @@ uv tool install pocketexpert-harness     # 或者 pipx install / pip install poc
 - **Tavily**: 在 [tavily.com](https://tavily.com) 注册拿 Key, `export TAVILY_API_KEY=tvly-...`
 - **Brave Search**: 在 [Brave Search API](https://brave.com/search/api/) 申请 Key, `export BRAVE_API_KEY=...`
 
-配好后跑 `peh doctor`, 「联网搜索」那一行显示 `✓ 联网搜索: searxng` (或 tavily / brave) 就对了。
+配好后跑 `peh doctor`, 「联网搜索」那一行显示 `✓ 联网搜索: zhipu` (或 searxng / tavily / brave) 就对了。同时配了几个时, 有 Key 的优先于 SearXNG; 想指定就设 `PEH_SEARCH=zhipu` 这样。
 Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起好。
 
 ### 遇到问题先跑 `peh doctor`
@@ -157,7 +158,7 @@ Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起
 
 - **页面能打开, 但一直不回答**: 多半是 Key 填错或余额不足, doctor 的「模型」那一行会给出原始报错。
 - **想让局域网里别的电脑也能用**: 先在 `.env` 设 `PEH_ACCESS_TOKEN` (访问口令), 再把 `docker-compose.yml` 端口映射里的 `127.0.0.1:` 去掉。本机方式 `peh serve --host 0.0.0.0` 不设口令会直接拒绝启动。
-- **联网搜索没结果**: Docker 方式自带的 SearXNG 第一次启动要等它起来; 本机方式要先配上面三选一的搜索服务。
+- **联网搜索没结果**: Docker 方式自带的 SearXNG 第一次启动要等它起来; 本机方式要先配上面四选一的搜索服务。
 
 ## 🧠 模型
 
@@ -210,7 +211,7 @@ Docker 方式不用管这一步: `docker compose up -d` 会把 SearXNG 一起起
 
 | 工具 | 做什么 | 开关 |
 |---|---|---|
-| `web_search` | 联网搜索 (SearXNG / Tavily / Brave) | 配了搜索服务才有 |
+| `web_search` | 联网搜索 (智谱 / SearXNG / Tavily / Brave) | 配了搜索服务才有 |
 | `open_url` | 读网页正文; 默认拒绝内网地址 | 常开 |
 | `list_files` `read_file` `write_file` | 读写工作区文件, 路径逃不出工作区 | 常开 |
 | `run_python` | 运行 Python 代码 (计算、数据分析、画图) | `PEH_PYTHON=on/ask/off` |

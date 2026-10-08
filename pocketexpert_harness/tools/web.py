@@ -26,13 +26,31 @@ MAX_REDIRECTS = 5
 # ── 搜索 ────────────────────────────────────────────────────────────────
 
 def search_backend(s: Settings) -> str:
-    if s.searxng_url:
-        return "searxng"
-    if s.tavily_api_key:
-        return "tavily"
-    if s.brave_api_key:
-        return "brave"
-    return ""
+    """用哪家搜索: PEH_SEARCH 指定的优先; 否则付费接口优先于自建 SearXNG (配了 Key 多半就是想用它)。"""
+    ready = {"zhipu": bool(s.zhipu_api_key), "tavily": bool(s.tavily_api_key), "brave": bool(s.brave_api_key),
+             "searxng": bool(s.searxng_url)}
+    if s.search_provider and ready.get(s.search_provider):
+        return s.search_provider
+    return next((name for name, ok in ready.items() if ok), "")
+
+
+async def _zhipu_search(s: Settings, client: httpx.AsyncClient, query: str, count: int) -> list[dict]:
+    """智谱开放平台网络搜索 (open.bigmodel.cn, 独立工具 API, 不绑模型)。引擎可配多个依次兜底 (余额 / 资源包不足时换下一个)。"""
+    engines = [e.strip() for e in (s.zhipu_search_engine or "search_std").split(",") if e.strip()]
+    last = ""
+    for engine in engines:
+        r = await client.post("https://open.bigmodel.cn/api/paas/v4/web_search",
+                              headers={"Authorization": f"Bearer {s.zhipu_api_key}"},
+                              json={"search_query": query[:70],      # 文档建议 ≤70 字, 超长召回变差
+                                    "search_engine": engine, "search_intent": False,
+                                    "count": count, "content_size": "medium"})
+        if r.status_code >= 400:
+            last = f"{engine}: HTTP {r.status_code} {r.text[:200]}"
+            continue
+        items = r.json().get("search_result") or []
+        return [{"title": i.get("title", ""), "url": i.get("link", ""), "snippet": i.get("content", "")}
+                for i in items[:count] if i.get("link") or i.get("content")]
+    raise RuntimeError(f"智谱搜索失败 ({last})")
 
 
 async def web_search(s: Settings, client: httpx.AsyncClient, query: str, count: int = 8) -> list[dict]:
@@ -49,13 +67,15 @@ async def web_search(s: Settings, client: httpx.AsyncClient, query: str, count: 
         r.raise_for_status()
         return [{"title": i.get("title", ""), "url": i.get("url", ""), "snippet": i.get("content", "")}
                 for i in (r.json().get("results") or [])[:count]]
+    if backend == "zhipu":
+        return await _zhipu_search(s, client, query, count)
     if backend == "brave":
         r = await client.get("https://api.search.brave.com/res/v1/web/search", params={"q": query, "count": count},
                              headers={"X-Subscription-Token": s.brave_api_key, "Accept": "application/json"})
         r.raise_for_status()
         return [{"title": i.get("title", ""), "url": i.get("url", ""), "snippet": re.sub(r"<[^>]+>", "", i.get("description", ""))}
                 for i in ((r.json().get("web") or {}).get("results") or [])[:count]]
-    raise RuntimeError("没有配置搜索服务 (SEARXNG_URL / TAVILY_API_KEY / BRAVE_API_KEY)")
+    raise RuntimeError("没有配置搜索服务 (SEARXNG_URL / TAVILY_API_KEY / BRAVE_API_KEY / ZHIPU_API_KEY)")
 
 
 def _qnorm(q: str) -> str:

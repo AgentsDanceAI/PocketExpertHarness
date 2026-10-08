@@ -262,7 +262,7 @@ async def cmd_doctor(s: Settings, _args) -> int:
         if ok:
             print(await _doctor_thinking(h))
         backend = search_backend(s)
-        print(f"{'✓' if backend else '·'} 联网搜索: {backend or '未配置 (设 SEARXNG_URL / TAVILY_API_KEY / BRAVE_API_KEY)'}")
+        print(f"{'✓' if backend else '·'} 联网搜索: {backend or '未配置 (设 ZHIPU_API_KEY / TAVILY_API_KEY / BRAVE_API_KEY / SEARXNG_URL)'}")
         print(f"· 代码执行: {s.python_mode}   工作区: {s.workspace}")
         await h.mcp.start()
         rows = h.mcp.status()

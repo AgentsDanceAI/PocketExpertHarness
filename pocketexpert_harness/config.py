@@ -76,6 +76,11 @@ class Settings:
     searxng_url: str = ""
     tavily_api_key: str = field(default="", repr=False)
     brave_api_key: str = field(default="", repr=False)
+    zhipu_api_key: str = field(default="", repr=False)
+    #: 智谱搜索引擎, 逗号分隔 = 依次兜底 (search_std ≈¥0.01/次; search_pro ≈¥0.03/次; search_pro_sogou / search_pro_quark)
+    zhipu_search_engine: str = "search_std"
+    #: 指定用哪家搜索 (searxng / tavily / brave / zhipu); 空 = 按 zhipu → tavily → brave → searxng 取第一个配好的
+    search_provider: str = ""
 
     mcp_config: Path | None = None
     #: 装上就有的 MCP 服务 (查火车票)。from_env 默认开 (PEH_BUILTIN_MCP=off 关); 直接构造 Settings 默认不开, 免得意外起子进程
@@ -117,6 +122,9 @@ class Settings:
             searxng_url=_env("SEARXNG_URL").rstrip("/"),
             tavily_api_key=_env("TAVILY_API_KEY"),
             brave_api_key=_env("BRAVE_API_KEY"),
+            zhipu_api_key=_env("ZHIPU_API_KEY") or _env("ZHIPU_SEARCH_API_KEY"),
+            zhipu_search_engine=_env("ZHIPU_SEARCH_ENGINE", "search_std"),
+            search_provider=_env("PEH_SEARCH").lower(),
             mcp_config=mcp_path,
             builtin_mcp=_env("PEH_BUILTIN_MCP", "on").lower() not in ("off", "0", "false", "no"),
             skills_dirs=dirs,

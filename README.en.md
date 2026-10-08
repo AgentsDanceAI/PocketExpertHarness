@@ -138,7 +138,8 @@ To hack on the code, clone the repo and `pip install -e .`.
 
 **Web search (bring your own when running locally; without it everything works except searching the web)** — pick one:
 
-- **Run your own SearXNG (free, no key, recommended)**: needs Docker; grab the ready-made config first:
+- **Zhipu web search (recommended in China, strong Chinese results)**: get a key at [open.bigmodel.cn](https://open.bigmodel.cn), then `export ZHIPU_API_KEY=...`; the default engine is the cheapest `search_std` (about ¥0.01 per query), override with `ZHIPU_SEARCH_ENGINE` (comma-separated engines are tried in order). PocketExpert AI uses it in production.
+- **Run your own SearXNG (free, no key)**: it relays public engines such as Baidu and Bing, which may start showing captchas or rate-limiting under load and degrade results. Needs Docker; grab the ready-made config first: needs Docker; grab the ready-made config first:
   ```bash
   curl -fsSLo searxng.yml https://raw.githubusercontent.com/AgentsDanceAI/PocketExpertHarness/main/deploy/searxng/settings.yml
   docker run -d --name searxng -p 127.0.0.1:8888:8080 -e SEARXNG_SECRET=some-random-string \
@@ -148,7 +149,7 @@ To hack on the code, clone the repo and `pip install -e .`.
 - **Tavily**: get a key at [tavily.com](https://tavily.com), then `export TAVILY_API_KEY=tvly-...`
 - **Brave Search**: get a key from the [Brave Search API](https://brave.com/search/api/), then `export BRAVE_API_KEY=...`
 
-Then run `peh doctor`: the search line should read `✓ 联网搜索: searxng` (or tavily / brave).
+Then run `peh doctor`: the search line should read `✓ 联网搜索: zhipu` (or searxng / tavily / brave). With several configured, keyed APIs win over SearXNG; force one with e.g. `PEH_SEARCH=zhipu`.
 The Docker setup needs none of this — `docker compose up -d` starts SearXNG alongside.
 
 ### Something wrong? Run `peh doctor` first
@@ -157,7 +158,7 @@ It makes one real model call, then reports search, code execution and MCP status
 
 - **The page loads but never answers**: usually a wrong key or no balance; the model line in doctor shows the raw error.
 - **Use it from other machines on your network**: set `PEH_ACCESS_TOKEN` in `.env` first, then drop `127.0.0.1:` from the port mapping in `docker-compose.yml`. Locally, `peh serve --host 0.0.0.0` refuses to start without a token.
-- **Web search returns nothing**: with Docker, give the bundled SearXNG a moment on first start; locally, configure one of the three search options above.
+- **Web search returns nothing**: with Docker, give the bundled SearXNG a moment on first start; locally, configure one of the search options above.
 
 ## 🧠 Models
 

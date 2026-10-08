@@ -148,6 +148,8 @@ class ChatModel:
         if thinking:
             messages = self._with_reasoning(messages)
         body: dict[str, Any] = {"model": model, "messages": messages, "stream": stream}
+        if stream:      # 让服务端在流的最后一帧带上用量 (不带这个, 多数服务流式时不回 usage, 用量就记成 0)
+            body["stream_options"] = {"include_usage": True}
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"
