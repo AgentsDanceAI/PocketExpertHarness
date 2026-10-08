@@ -84,7 +84,7 @@ A first pass on two Chinese deep-search benchmarks that other research agents re
 
 | Agent | BrowseComp-ZH | xbench-DeepSearch-2510 |
 |---|---|---|
-| **PocketExpertHarness** | **80%** (16/20) | **70%** (14/20) |
+| **PocketExpertHarness** | **80.0** | **70.0** |
 | MiroThinker-1.7 | 75.3 | — |
 | ChatGPT-5 Pro | — | 75+ |
 | Tongyi DeepResearch (30B-A3B) | 46.7 | 55.0 |
