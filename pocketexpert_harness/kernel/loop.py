@@ -57,6 +57,30 @@ CONCLUDING_TOOLS = frozenset({"finish", "final", "done"})
 OBSERVATION_SSE_CHARS = 600
 MAX_CALLS_PER_STEP = 10      # 一步里最多执行的工具调用数 (默认 10; 这里按串行档逐个跑)
 
+# 观察超上限时的截断。原先是 obs[:cap] 硬切: 搜索结果的观察可能正好停在「(http://…/202411/174」这种半截链接上,
+# 模型下一步原样去打开 → 404, 404 还会被当成读过的来源; 截掉了多少也一字不提, 模型当成看全了。
+# 现在切点落在链接中间就退到上一个换行 (那一行整行不要), 附近没有换行可退 (一行特别长) 就退到链接开头;
+# 截了在末尾说一句还剩多少字。工具自己能按条目排的 (如联网搜索) 应在工具里先排好, 这里只是兜底。
+_URL_TAIL_RE = re.compile(r"https?://[^\s<>\"'()（）\[\]「」]*$")
+_URL_CHAR_RE = re.compile(r"[^\s<>\"'()（）\[\]「」]")
+OBSERVATION_CUT_NOTE = "\n…(这条观察超出单次上限, 后面还有 {n} 字没显示)"
+_OBS_CUT_RESERVE = 48        # 给末尾那句提示留的位置: 截完连提示一起不超过 cap
+
+
+def clip_observation(text: Any, cap: int) -> str:
+    """观察按 cap 截断: 不切在链接中间, 截了在末尾注明还剩多少字。没超上限原样返回。"""
+    s = str(text or "")
+    if len(s) <= cap:
+        return s
+    keep = max(0, cap - _OBS_CUT_RESERVE)
+    cut = s[:keep]
+    m = _URL_TAIL_RE.search(cut)
+    if m and _URL_CHAR_RE.match(s[keep]):
+        nl = cut.rfind("\n", 0, m.start())
+        cut = cut[:nl] if nl >= keep // 2 else cut[:m.start()].rstrip(" ([（<\"'")
+    cut = cut.rstrip()
+    return cut + OBSERVATION_CUT_NOTE.format(n=len(s) - len(cut))
+
 
 # ── 收件箱 ─────────────────────────────────────────────────────────────────
 
@@ -722,7 +746,7 @@ class ReactLoop:
                 results[j] = result
                 cap = int(self.obs_cap(call.name) or 1800)
                 self.steps_log.append({"n": n, "thought": call.thought, "tool": call.name, "args": call.args,
-                                       "ok": result.ok, "observation": result.obs[:cap], "data": result.data,
+                                       "ok": result.ok, "observation": clip_observation(result.obs, cap), "data": result.data,
                                        **({"speaker": result.speaker or self.speaker}
                                           if (result.speaker or self.speaker) else {})})
                 yield {"event": "observation", "n": n, "tool": call.name, "ok": result.ok,
@@ -733,7 +757,7 @@ class ReactLoop:
                     t.cancel()
         for call, result in zip(group, results):
             cap = int(self.obs_cap(call.name) or 1800)
-            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{result.obs[:cap]}{remain_note}")
+            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{clip_observation(result.obs, cap)}{remain_note}")
 
     async def _step(self, step: int, system: str) -> AsyncIterator[Any]:
         ctx, log = self.ctx, self.log
@@ -899,10 +923,10 @@ class ReactLoop:
             if result is None:
                 result = ToolResult(ok=False, obs=f"工具 {call.name} 没有返回结果")
             cap = int(self.obs_cap(call.name) or 1800)
-            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{result.obs[:cap]}{remain_note}")
+            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{clip_observation(result.obs, cap)}{remain_note}")
             if not concluding:
                 self.steps_log.append({"n": n, "thought": call.thought, "tool": call.name, "args": call.args,
-                                       "ok": result.ok, "observation": result.obs[:cap], "data": result.data,
+                                       "ok": result.ok, "observation": clip_observation(result.obs, cap), "data": result.data,
                                        **({"speaker": result.speaker or self.speaker}
                                           if (result.speaker or self.speaker) else {})})
                 yield {"event": "observation", "n": n, "tool": call.name, "ok": result.ok,
