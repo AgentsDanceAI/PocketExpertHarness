@@ -49,6 +49,9 @@ STEER_PREFIX = "用户中途补充 (以此为准, 据此调整后续动作): "
 # 「正文长得像动作 JSON」那种猜测 2026-10-05 已删 —— 原生 function calling 下正文就是正文。
 FORMAT_NUDGE = "你上一条回复里的工具调用参数不是合法 JSON (可能被截断)。请重新调用该工具, 参数写短一点。"
 REPEAT_NUDGE = "输出与上一轮完全相同。请换一个策略, 或用 finish 进入总结。"
+#: 工具参数被输出上限截断时放宽到的 token 数 (一段 python / 一份大纲参数够用)
+TOOL_ARGS_MIN_TOKENS = 4000
+TRUNCATED_ARGS_NUDGE = "(平台提示) 上一次工具调用的参数写到一半被输出上限截断了, 已放宽上限。把那个调用完整地重发一次。"
 MONOLOGUE_NUDGE = ("(平台交付检查, 不是用户说的话) 停一下: 你刚才写出来的是思考过程 (「我需要… / 我在考虑… / 用户想要…」), "
                    "不是给用户的答复 —— 用户要的东西还没写出来。现在直接写给用户的正式答复: 不复述思考、不写打算, 第一句就进正题。")
 MAX_PARSE_FAILS = 4          # 连续工具参数格式错误的容忍次数, 超过按"没有答案"收口
@@ -596,6 +599,7 @@ class ReactLoop:
         self.last_raw = ""
         self.max_tokens_hit = False
         self.monologue_bounced = False
+        self.bump_once = 0
 
     # ── 回合 ──
     async def run(self) -> AsyncIterator[Any]:
@@ -769,6 +773,8 @@ class ReactLoop:
         log.log_system(system)
         messages = log.derive_messages(system)
         call_route = route
+        if self.bump_once:
+            call_route, self.bump_once = {**route, "max_tokens": self.bump_once}, 0
         attempt = 0
         res: Optional[dict] = None
         while True:
@@ -827,6 +833,17 @@ class ReactLoop:
         raw = str(res.get("raw") or "") or (content + (json.dumps(calls, ensure_ascii=False, sort_keys=True) if calls else ""))
         if res.get("malformed"):
             # 工具参数解析不出 (截断/多余字段): 不是答案, 走格式纠正; 连错 4 次按"没有答案"收口
+            _cap = int(self.route.get("max_tokens") or 0)
+            if str(res.get("finish_reason") or "") == "length" and 0 < _cap < TOOL_ARGS_MIN_TOKENS:
+                # 是输出上限把参数截断了 (2026-10-10 实录: 被请来协作的成员每步只有 800 token —— 那是给**答复**定的篇幅,
+                # 一段 python 参数写到一半就被截成不合法的 JSON, 连错三次, 第 4-5 题没算)。放宽这位的上限再来, 不算格式错;
+                # 答复的篇幅照旧由原上限管。
+                self.bump_once = TOOL_ARGS_MIN_TOKENS        # 只放宽下一次请求: 答复撞上限照旧算截断
+                logger.warning("[loop] task=%s 第 %d 步工具参数被输出上限 %d 截断, 放宽到 %d 重来", ctx.task_id, step, _cap,
+                               TOOL_ARGS_MIN_TOKENS)
+                log.append("user/message", content=TRUNCATED_ARGS_NUDGE, source="nudge")
+                yield StepEnd()
+                return
             self.parse_fails += 1
             if self.parse_fails >= MAX_PARSE_FAILS:
                 yield StepEnd(kind="completed", reason="malformed")
