@@ -399,6 +399,17 @@ ToolPort = Callable[[ToolCall, int], AsyncIterator[Any]]
 Assemble = Callable[[hooks.TurnContext], str]
 
 
+def _drain(buf: list) -> str:
+    """取走缓冲里已有的增量并清掉这几块 —— 必须在 yield **之前**取。
+    模型调用在 heartbeat 里是独立任务: yield 挂起 (消费方在写 SSE / 落库) 时它还在往 buf 里追加,
+    原来「yield join(buf) → 恢复后 buf.clear()」会把挂起期间到的那几块一并清掉 (2026-10-10 实跑:
+    落库思考里 "12.5" 丢了、"不得增加" 丢了)。按长度切, 回调即使从别的线程追加也不丢。"""
+    n = len(buf)
+    text = "".join(buf[:n])
+    del buf[:n]
+    return text
+
+
 async def heartbeat(awaitable, tick: float = 0.5, ping_every: float = 10.0):
     """把耗时 await 变成节拍序列: 每 tick 秒 ("tick", 已等秒数) — 调用方借它冲刷流式增量;
     每 ping_every 秒一帧 ("ping", …) 喂 SSE 保活; 最后 ("done", 结果)。异常从 result() 原样抛。
@@ -654,11 +665,9 @@ class ReactLoop:
                         res = val
                     else:
                         if thinks:
-                            yield ThinkingDelta(text="".join(thinks), n=step)
-                            thinks.clear()
+                            yield ThinkingDelta(text=_drain(thinks), n=step)
                         if deltas:
-                            yield {"event": "assistant_delta", "n": step, "text": "".join(deltas)}
-                            deltas.clear()
+                            yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
                     if kind == "ping":
                         yield PING
             except (GeneratorExit, asyncio.CancelledError):
@@ -666,11 +675,9 @@ class ReactLoop:
             except Exception as e:      # noqa: BLE001 — 失败交给 request-error 瀑布定重试
                 failure = e
             if thinks:
-                yield ThinkingDelta(text="".join(thinks), n=step)
-                thinks.clear()
+                yield ThinkingDelta(text=_drain(thinks), n=step)
             if deltas:
-                yield {"event": "assistant_delta", "n": step, "text": "".join(deltas)}
-                deltas.clear()
+                yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
             meter.record(log, step=step, route=route, res=res, failure=failure, attempt=attempt)
             if failure is None and isinstance(res, dict):
                 break
