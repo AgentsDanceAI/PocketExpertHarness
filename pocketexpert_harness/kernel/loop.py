@@ -31,6 +31,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Iterable, Optional
@@ -48,6 +49,8 @@ STEER_PREFIX = "用户中途补充 (以此为准, 据此调整后续动作): "
 # 「正文长得像动作 JSON」那种猜测 2026-10-05 已删 —— 原生 function calling 下正文就是正文。
 FORMAT_NUDGE = "你上一条回复里的工具调用参数不是合法 JSON (可能被截断)。请重新调用该工具, 参数写短一点。"
 REPEAT_NUDGE = "输出与上一轮完全相同。请换一个策略, 或用 finish 进入总结。"
+MONOLOGUE_NUDGE = ("(平台交付检查, 不是用户说的话) 停一下: 你刚才写出来的是思考过程 (「我需要… / 我在考虑… / 用户想要…」), "
+                   "不是给用户的答复 —— 用户要的东西还没写出来。现在直接写给用户的正式答复: 不复述思考、不写打算, 第一句就进正题。")
 MAX_PARSE_FAILS = 4          # 连续工具参数格式错误的容忍次数, 超过按"没有答案"收口
 MAX_DUP_RAWS = 2             # 连续一模一样的输出: 先提醒, 再犯强退 (卡死检测)
 CONCLUDING_TOOLS = frozenset({"finish", "final", "done"})
@@ -344,6 +347,33 @@ def repetition_cut(s: str, *, probe: int = 64, min_period: int = 40, min_span: i
     return kept[:end + 1].rstrip() if end >= 0 else kept
 
 
+#: 一段话开头就是第一人称打算 / 在说用户 (第三人称) —— 思考独白的样子, 不是写给用户的话
+_PLAN_RE = re.compile(
+    r"^(?:好的?[,，]\s*)?(?:现在|接下来|然后|首先|最后|另外|同时)?[,，]?\s*(?:"
+    r"我(?:需要|要先|要把|要确保|要组织|要调整|得|先|还在|正在|在(?:考虑|想|组织|梳理|整理|设计|权衡)|意识到|注意到"
+    r"|想(?:到|通过|快速|先)|应该|打算|准备|来(?:写|整理|组织|设计|看)|会把)"
+    r"|让我(?:先|来|想)|用户(?:想要|问的|需要|希望|是想|的问题是|已经)|他(?:已经|想|问|需要)|技能已加载)")
+
+
+def looks_like_monologue(text: str) -> bool:
+    """整篇答复大半是思考独白吗: ≥5 段 (代码 / 表格除外), 一半以上段落以第一人称打算开头。
+    生产库 2701 条答复校准 (10-10): 只有提示词专家那条到 0.89, 其余全在 0.15 以下 —— 门槛放在 0.5 不会误伤正常答复。"""
+    paras, code = [], False
+    for ln in (text or "").split("\n"):
+        t = ln.strip()
+        if t.startswith("```"):
+            code = not code
+            continue
+        if code or not t or t.startswith("|"):
+            continue
+        t = re.sub(r"^(?:[-*>#\d.、)\s]+|\*\*)+", "", t)
+        if t:
+            paras.append(t)
+    if len(paras) < 5:
+        return False
+    return sum(1 for t in paras if _PLAN_RE.match(t)) / len(paras) >= 0.5
+
+
 class _RepeatWatch:
     """流式复读熔断: 模型偶尔陷进同一段话一直重复 (2026-10-10 提示词专家实录: 一段 150 字的收尾在一次调用里
     重复到输出上限, 正文 25 万字、这一步跑了 14 分钟)。每多 ~1000 字查一次尾巴, 判定复读就停掉这次调用。"""
@@ -541,6 +571,7 @@ class ReactLoop:
         self.dup_raws = 0
         self.last_raw = ""
         self.max_tokens_hit = False
+        self.monologue_bounced = False
 
     # ── 回合 ──
     async def run(self) -> AsyncIterator[Any]:
@@ -798,6 +829,15 @@ class ReactLoop:
                 # 整段一次到手 (非流式) 或复读只在最后一截: 同一道熔断, 截到第一遍; 撞上限是复读撞的, 不算截断
                 logger.warning("[loop] task=%s 第 %d 步正文尾巴在复读, 截掉 (%d 字 → %d 字)", ctx.task_id, step, len(content), len(_cut))
                 content, res = _cut, {**res, "finish_reason": "repetition"}
+            if not self.monologue_bounced and (not ctx.max_steps or step < ctx.max_steps) and looks_like_monologue(content):
+                # 整篇「答复」是思考独白 (10-10 提示词专家: 「技能已加载。现在我来写…」「我需要设计…」「用户想要…」,
+                # 改好的提示词一直没写出来): 打回一次, 下一步写正式答复。这一段留在时间线里当过程。
+                self.monologue_bounced = True
+                logger.warning("[loop] task=%s 第 %d 步答复是思考独白 (%d 字), 打回重写", ctx.task_id, step, len(content))
+                log.append("assistant/message", content=content[:600])
+                log.append("user/message", content=MONOLOGUE_NUDGE, source="nudge")
+                yield StepEnd()
+                return
             log.append("assistant/message", content=content)
             if str(res.get("finish_reason") or "") == "length":
                 self.max_tokens_hit = True
