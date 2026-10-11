@@ -86,6 +86,9 @@ def skill_triggers_from_meta(meta: dict) -> list[str]:
 
 
 _ASCII_TERM = re.compile(r"\A[\x20-\x7e]+\Z")
+#: 汉字和拉丁字母 / 数字之间的空格: 「AI 搜索」和「AI搜索」是同一个词, 写法因人而异
+#: (2026-10-11 AI搜索专家: 触发词「AI 搜索」点不到名字里没空格的专家, 看家技能一次没进来)
+_CJK_LATIN_GAP = re.compile(r"(?<=[\u3400-\u9fff])\s+(?=[0-9a-z])|(?<=[0-9a-z])\s+(?=[\u3400-\u9fff])")
 
 
 def term_hits(term: str, goal_low: str) -> bool:
@@ -101,4 +104,4 @@ def term_hits(term: str, goal_low: str) -> bool:
     if _ASCII_TERM.match(term_low):
         return re.search(r"(?<![0-9a-z])" + re.escape(term_low) + r"(?![0-9a-z])",
                          goal_low) is not None
-    return term_low in goal_low
+    return term_low in goal_low or _CJK_LATIN_GAP.sub("", term_low) in _CJK_LATIN_GAP.sub("", goal_low)
