@@ -401,6 +401,108 @@ def looks_like_monologue(text: str) -> bool:
     return sum(1 for t in paras if _PLAN_RE.match(t)) / len(paras) >= 0.5
 
 
+# ── 思考写到一半被截断 (2026-10-11) ──
+# 按 token 硬预算限思考长度的模型, 思考一写满预算就直接转去写正文: finish_reason 照常 (stop / tool_calls), 唯一的
+# 迹象是用量里的思考 token 恰好顶在预算上 —— 而用量要等正文写完才到。思考里计划好的计算 / 查证于是一次没做,
+# 正文里的关键数字成了现编的 (10-11 实录: 留存实验题思考写到「我用 python 算一下」「我搜一下」就断了, 两样都没做,
+# 样本量是编的; 股权题思考断在半句, 里面算好的方案没用上, 正文换成一张合计 102% 的表)。
+# 判据在思考写完的那一刻就能下: 断在半句 + 思考里有还没做的工具动作。这样的一步先扣住正文不往外流:
+# 这一步调了工具就原样放出; 没调 (直接写答复) 就打回一次 —— 那段正文不发给用户、不当答案, 让它先做再写。
+_THINK_END_RE = re.compile(r"[。！？!?.…~」』）)\]】”\"'`*]\s*$")
+_TOOL_VERB = r"(?:算|计算|验算|核算|求|跑|统计|数|模拟|验证?|核对|核实|搜|搜索|检索|查|查询|查证)"
+_TOOL_NAME = r"(?:python|代码|脚本|calculate|python_execute|计算器|计算工具|web_search|open_url|联网搜索|搜索工具)"
+_TOOL_PLAN_MODAL = r"(?:可以|应该|需要|要|得|还要|还得|打算|准备|会|就|来|先|再|去|快速|顺便)*"
+_TOOL_PLAN_RES = (
+    # 点名用工具: 「用 python 算」「用 calculate 算」「跑代码验一下」「我调 screenshot_url 截…」
+    re.compile(r"(?:用|拿|跑|调用?)\s*" + _TOOL_NAME + r"(?:\s*(?:来|快速|一次|一下|先|再|把)?\s*" + _TOOL_VERB
+               + r"|(?=\s*[，,。:：]))|调用?\s*[A-Za-z]+(?:_[A-Za-z0-9]+)+", re.I),
+    # 第一人称的打算: 「我搜一下」「让我算一下」「我可以再核实一下」「我做一次批量搜索」「…。先查一下」
+    re.compile(r"(?:我|让我|咱们?)" + _TOOL_PLAN_MODAL
+               + r"\s*(?:搜|搜索|检索|查|查询|查证|核实|核对|算|计算|验算|核算)(?:一下|一遍|一次|下|个|几|清楚)"
+               r"|(?:我|让我|咱们?)" + _TOOL_PLAN_MODAL + r"\s*(?:做|跑|发)(?:一次|一轮|一下|个)?(?:批量|并行|轻量|针对性)?的?"
+               r"(?:搜索|检索|查询|计算)"
+               r"|(?:^|(?<=[。！？\n；;，,：:]))\s*(?:先|再)(?:搜|搜索|查|查询|核实|算|计算)(?:一下|一遍|一次)"),
+    re.compile(r"\b(?:let me|i(?:'ll| will| need to| should| want to| must)|i'd better)\s+(?:quickly\s+|first\s+|now\s+|also\s+)?"
+               r"(?:search|look up|google|browse|run (?:the )?(?:python|code)|use (?:python|the calculator|calculate|web_search)"
+               r"|call (?:calculate|python_execute|web_search|open_url))\b", re.I),
+)
+#: 前面紧挨着这些 = 不是打算: 否定 / 在掂量 / 说的是别人 / 已经做过
+_TOOL_PLAN_NOT_AFTER = re.compile(r"(?:不|无需|没必要|不用|不必|不需要|别|不再|免得|省得|要不要|是否|需不需要|该不该|或者|还是"
+                                  r"|你|用户|他|她|对方|建议|已|刚才|刚刚|之前|上一步|前面)\W{0,2}$")
+_TOOL_PLAN_DONE = re.compile(r"^\S{0,2}[了过]")            # 「用 python 算出了」「搜过」
+_TOOL_PLAN_WEIGHING = re.compile(r"是否|要不要|需不需要|该不该|还是|或者")
+#: 想完决定不用工具了 (「不必再调工具」「直接写」「我的了解已经足够」): 它前面的打算不算
+_TOOL_PLAN_DROPPED = re.compile(r"(?:不必|不用|不需要|无需|没必要)再?(?:调|用)?(?:工具|搜|查|算|核实|联网|python)"
+                                r"|直接(?:写|答|作答|回答|给出)|不再(?:搜|查|调)"
+                                r"|(?:了解|信息|材料|数据|事实|知识)(?:已经|已)?(?:足够|够了|够用)", re.I)
+_SENTENCE_END_RE = re.compile(r"[。！？!?\n]")
+CUT_PLAN_NUDGE = ("(平台检查, 不是用户说的话) 你上一步的思考写到一半被长度上限截断了 (停在「…{tail}」), "
+                  "思考里打算用工具做的这几件还没做:\n{plans}\n"
+                  "那一步开头写的答复没有发给用户。现在先调工具: 要算的用工具算出来、要查的查到; 拿到结果再写完整答复, "
+                  "不提这次中断。这一步的思考只想下一步调什么, 别铺长。")
+
+
+def thinking_cut_short(thinking: str) -> bool:
+    """思考断在半句吗: 有字, 结尾却不是句末标点。
+    生产库 10-10~10-11 两千多次调用校准: 没写满预算的思考几乎都收在句末标点上 (1024 token 档不到 1200 字的 249 次一次也没有),
+    思考 token 顶在预算上的那些九成停在半句 —— 拿它当「被预算截断」的即时判据。"""
+    t = (thinking or "").rstrip()
+    return bool(t) and not _THINK_END_RE.search(t)
+
+
+def planned_tool_actions(thinking: str, limit: int = 4) -> list[str]:
+    """思考里说了要用工具做的事 (算 / 搜 / 查 / 核实), 返回说这话的那几句 (按出现顺序去重, 最多 limit 句)。
+    不算的: 否定与掂量 (「要不要搜一下？不必」「是否需要用 python 算排期」)、说的是别人 (「建议用户查一下」)、
+    已经做过的 (「用 python 算出了」)、后面又决定不用工具的 (「…实际上不必再调工具」)。"""
+    t = thinking or ""
+    found: list[tuple[int, str]] = []
+    for rx in _TOOL_PLAN_RES:
+        for m in rx.finditer(t):
+            if _TOOL_PLAN_NOT_AFTER.search(t[max(0, m.start() - 6):m.start()]) or _TOOL_PLAN_DONE.match(t[m.end():m.end() + 3]):
+                continue
+            s0 = max(t.rfind(c, 0, m.start()) for c in "。！？!?\n") + 1
+            e = _SENTENCE_END_RE.search(t, m.end())
+            if (e and t[e.start()] in "？?") or _TOOL_PLAN_WEIGHING.search(t, s0, m.start()) or _TOOL_PLAN_DROPPED.search(t, m.end()):
+                continue
+            s = t[s0:e.start() if e else len(t)].strip()
+            found.append((s0, s if len(s) <= 120 else s[:120] + "…"))
+    out: list[str] = []
+    for _, s in sorted(found):
+        if s and s not in out:
+            out.append(s)
+    return out[:limit]
+
+
+class _CutPlanHold:
+    """一次模型调用的「思考被截断」守门。第一个正文字到达时思考已经写完, 在这一刻判一次: 思考断在半句、
+    里面又有还没做的工具动作 → 扣住这一步的正文 (不往外流)。扣住的正文写过 ABORT_CHARS 字还没见工具调用,
+    就是在直接写答复了 —— 停掉这次调用, 省下后面的生成 (调工具前的那句交代远到不了这个长度)。"""
+    ABORT_CHARS = 1200
+
+    def __init__(self, armed: bool, thinking: Callable[[], str]):
+        self.armed, self._thinking = armed, thinking
+        self.decided = self.hold = False
+        self.thinking = ""
+        self.plans: list[str] = []
+        self.n = 0
+
+    def feed(self, piece: str):
+        if not self.armed or not piece:
+            return
+        if not self.decided:
+            self.decided = True
+            t = self._thinking()
+            if thinking_cut_short(t):
+                self.plans = planned_tool_actions(t)
+                self.hold, self.thinking = bool(self.plans), t
+        if self.hold:
+            self.n += len(piece)
+
+    @property
+    def abort(self) -> bool:
+        return self.hold and self.n >= self.ABORT_CHARS
+
+
 class _RepeatWatch:
     """流式复读熔断: 模型偶尔陷进同一段话一直重复 (2026-10-10 提示词专家实录: 一段 150 字的收尾在一次调用里
     重复到输出上限, 正文 25 万字、这一步跑了 14 分钟)。每多 ~1000 字查一次尾巴, 判定复读就停掉这次调用。"""
@@ -467,6 +569,10 @@ class _CallMeter:
               "tool_calls": len((res or {}).get("tool_calls") or []) if isinstance(res, dict) else 0,
               "reasoning": "".join(self.reasoning)[:self.REASONING_CAP],
               "ok": failure is None and isinstance(res, dict)}
+        _cd = u.get("completion_tokens_details")
+        if isinstance(_cd, dict) and _cd.get("reasoning_tokens") is not None:
+            # 思考用了多少 token (上游报了才记): 顶在思考预算上 = 这一步的思考被截断了
+            ev["reasoning_tokens"] = int(_cd.get("reasoning_tokens") or 0)
         if failure is not None:
             ev["error"] = str(failure)[:300]
         log.trace.append(ev)
@@ -599,6 +705,7 @@ class ReactLoop:
         self.last_raw = ""
         self.max_tokens_hit = False
         self.monologue_bounced = False
+        self.cut_plan_bounced = False     # 思考被截断、计划的工具动作没做就写了答复: 每个回合只打回一次
         self.bump_once = 0
 
     # ── 回合 ──
@@ -702,6 +809,11 @@ class ReactLoop:
                     logger.warning("[loop] task=%s 摘要式压缩失败, 退回机械截短", self.ctx.task_id, exc_info=True)
         log.compact()
 
+    def _cut_plan_armed(self, step: int) -> bool:
+        """这一步要不要看「思考被截断」: 回合里还没打回过、有工具可调、打回之后还剩至少两步 (调工具 + 写答复)。"""
+        return (not self.cut_plan_bounced and bool(self.tool_names)
+                and (not self.ctx.max_steps or step + 2 <= self.ctx.max_steps))
+
     def _parallel_width(self, batch: list, k: int) -> int:
         """从第 k 个调用起, 连着几个可以一起跑 (都在 parallel 里、都是在场工具); 不足两个返回 1。"""
         w = 0
@@ -785,8 +897,10 @@ class ReactLoop:
             res = None
             meter = _CallMeter()
             said, mused = _RepeatWatch(), _RepeatWatch()
+            # 思考断在半句又有没做的工具动作: 这一步的正文先扣着 (plan_hold.hold), 看它调不调工具
+            plan_hold = _CutPlanHold(self._cut_plan_armed(step), lambda m=meter: "".join(m.reasoning))
             beats = heartbeat(self.llm(messages, {**call_route, "on_thinking": meter.wrap(_tee(thinks.append, mused.feed), reasoning=True)},
-                                       meter.wrap(_tee(deltas.append, said.feed))),
+                                       meter.wrap(_tee(plan_hold.feed, deltas.append, said.feed))),
                               tick=self.tick, ping_every=self.ping_every)
             try:
                 async for kind, val in beats:
@@ -795,7 +909,7 @@ class ReactLoop:
                     else:
                         if thinks:
                             yield ThinkingDelta(text=_drain(thinks), n=step)
-                        if deltas:
+                        if deltas and not plan_hold.hold:
                             yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
                     if kind == "ping":
                         yield PING
@@ -807,13 +921,20 @@ class ReactLoop:
                         logger.warning("[loop] task=%s 第 %d 步%s复读, 已停掉这次调用 (正文 %d 字 → %d 字)", ctx.task_id, step,
                                        "正文" if said.cut is not None else "思考", said.n, len(res["content"]))
                         break
+                    if res is None and plan_hold.abort:
+                        # 扣住的正文已经写了一大段还没调工具 = 在直接写答复: 停掉这次调用, 后面不必再生成 (下面打回)
+                        await beats.aclose()
+                        res = {"content": said.text(), "tool_calls": [], "finish_reason": "thinking_cut"}
+                        logger.warning("[loop] task=%s 第 %d 步思考断在半句、没做计划里的工具动作就写答复 (%d 字), 已停掉这次调用",
+                                       ctx.task_id, step, plan_hold.n)
+                        break
             except (GeneratorExit, asyncio.CancelledError):
                 raise
             except Exception as e:      # noqa: BLE001 — 失败交给 request-error 瀑布定重试
                 failure = e
             if thinks:
                 yield ThinkingDelta(text=_drain(thinks), n=step)
-            if deltas:
+            if deltas and not plan_hold.hold:
                 yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
             meter.record(log, step=step, route=route, res=res, failure=failure, attempt=attempt)
             if failure is None and isinstance(res, dict):
@@ -829,6 +950,21 @@ class ReactLoop:
             return
         content = str(res.get("content") or "").strip()
         calls = res.get("tool_calls") or []
+        if plan_hold.hold:
+            if not calls and not res.get("malformed"):
+                # 思考写到一半被截断, 计划里的计算 / 查证一样没做就写了答复: 打回一次。扣住的正文不发给用户、不当答案;
+                # 会话里留它的开头 (消息照常一问一答交替), 打回的话里带上思考停在哪、还有哪几件没做。
+                self.cut_plan_bounced = True
+                logger.warning("[loop] task=%s 第 %d 步思考被截断 (%d 字), 计划的工具动作 %d 件没做就写了答复 (%d 字), 打回先做",
+                               ctx.task_id, step, len(plan_hold.thinking), len(plan_hold.plans), len(content))
+                log.append("assistant/message", content=content[:600])
+                log.append("user/message", source="nudge", content=CUT_PLAN_NUDGE.format(
+                    tail=plan_hold.thinking.rstrip()[-40:], plans="\n".join(f"- 「{p}」" for p in plan_hold.plans)))
+                yield StepEnd()
+                return
+            if deltas:
+                # 这一步调了工具: 扣住的那句交代原样放出 (在工具卡片之前)
+                yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
         # 重复判定的指纹: 端口给了 raw 就用 raw, 否则 内容 + 工具调用 (同一句 thought 配不同调用不算重复)
         raw = str(res.get("raw") or "") or (content + (json.dumps(calls, ensure_ascii=False, sort_keys=True) if calls else ""))
         if res.get("malformed"):
