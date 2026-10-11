@@ -473,6 +473,77 @@ def planned_tool_actions(thinking: str, limit: int = 4) -> list[str]:
     return out[:limit]
 
 
+# ── 答复停在半句 (2026-10-11) ──
+# 上游偶尔在半句处就报 stop: 写答复那一步 finish=stop、只输出了 1916 token (思考 845), 请求的输出上限是 128000 ——
+# 不是撞上限。正文停在「…**普通烧烤门店的档位后台会显示，以后」, 回合照常算完成, 后面照挂参考文献, 长图末尾露出字面的 `**`。
+# 判据从严, 只认断在半句的铁证 (代码块里不判): 末行没有句末标点, 且加粗没闭合 / 末尾是逗号冒号这类接续符 / 列表项只有标记;
+# 或者表格最后一行写了一半 (上面的行都以 | 收尾, 它没有)。生产库 7 天 628 条 finish=stop 的答复里只命中这一条,
+# 以链接 / 表情 / 署名 / 书名号收尾的那些一条没误判。
+# 命中就带着这一步的全部上下文续写一次 (关思考, 有自己的输出上限), 续写的字接在断点后面照常流出, 拼成一份答复;
+# 「接着写」那句只发给模型, 不进会话。撞上限 (length) 不续 —— 那是篇幅上限在管。每个回合只续一次。
+# 不到 CUT_CONTINUE_MIN_CHARS 字的不续: 校准只做过成段的答复; 「我先核实一下…：」这种只说了打算的短句归收尾钩子管
+# (续写会让它直接写答复, 把该做的查证跳过去)。
+_ANSWER_END_RE = re.compile(r"[。！？!?.…~」』）)\]】》”\"'`*>]\s*$")
+_ANSWER_HANGING_RE = re.compile(r"(?:[，、,：:；;（(「『“‘【\[]|^(?:[-*+]|\d{1,2}[.、)]))$")
+_BOLD_MARK_RE = re.compile(r"(?<!\*)\*\*(?!\*)")
+_FENCE_LINE_RE = re.compile(r"(?m)^\s*```")
+CUT_CONTINUE_MAX_TOKENS = 8000
+CUT_CONTINUE_MIN_CHARS = 200
+CUT_ANSWER_NUDGE = ("(平台检查, 不是用户说的话) 你上一条答复写到一半就停了, 停在「…{tail}」。从断点接着写完: "
+                    "第一个字直接接在「{tail}」后面, 不重复已经写出的字, 不加开场白, 不提这次中断, 不调工具。")
+
+
+def answer_cut_off(text: str) -> bool:
+    """答复明显停在半句吗 (判据从严, 见上): 只认未闭合的加粗、接续符收尾、只有标记的列表项、写了一半的表格行。"""
+    t = (text or "").rstrip()
+    if not t or len(_FENCE_LINE_RE.findall(t)) % 2:
+        return False
+    lines = t.split("\n")
+    last = lines[-1].strip()
+    if last.startswith("|"):
+        above = []
+        for ln in reversed(lines[:-1]):
+            s = ln.strip()
+            if not s.startswith("|"):
+                break
+            above.append(s)
+        return bool(above) and all(s.endswith("|") for s in above) and not last.endswith("|")
+    if _ANSWER_END_RE.search(last):
+        return False
+    return len(_BOLD_MARK_RE.findall(last)) % 2 == 1 or bool(_ANSWER_HANGING_RE.search(last))
+
+
+class _Splice:
+    """续写接到断点上: 续写开头若把断点前的字又写了一遍 (重起这一句 / 重复最后一个词), 去掉重复再放出。
+    开头先扣着, 直到确定它不是在复述前文 (扣着的字在前文末尾一段里找不到了) 才定下去掉多少。"""
+    WINDOW = 500
+
+    def __init__(self, partial: str):
+        self.partial = partial
+        self.tail = partial[-self.WINDOW:]
+        self.buf = ""
+        self.settled = False
+
+    def feed(self, piece: str) -> str:
+        if self.settled:
+            return piece
+        self.buf += piece
+        if len(self.buf) < self.WINDOW and self.buf in self.tail:
+            return ""
+        return self._settle()
+
+    def flush(self) -> str:
+        return "" if self.settled else self._settle()
+
+    def _settle(self) -> str:
+        self.settled = True
+        buf, self.buf = self.buf, ""
+        for k in range(min(len(buf), len(self.tail)), 1, -1):
+            if self.partial.endswith(buf[:k]):
+                return buf[k:]
+        return buf
+
+
 class _CutPlanHold:
     """一次模型调用的「思考被截断」守门。第一个正文字到达时思考已经写完, 在这一刻判一次: 思考断在半句、
     里面又有还没做的工具动作 → 扣住这一步的正文 (不往外流)。扣住的正文写过 ABORT_CHARS 字还没见工具调用,
@@ -682,7 +753,8 @@ class ReactLoop:
                  tick: float = 0.5, ping_every: float = 10.0,
                  speaker: Optional[dict] = None,
                  parallel: Iterable[str] = (),
-                 summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None):
+                 summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None,
+                 continue_cut: bool = False):
         self.ctx, self.log, self.inbox = ctx, log, inbox
         self.summarizer = summarizer      # 摘要式压缩 (None = 机械截短)
         self.llm, self.tools, self.assemble = llm, tools, assemble
@@ -706,6 +778,9 @@ class ReactLoop:
         self.max_tokens_hit = False
         self.monologue_bounced = False
         self.cut_plan_bounced = False     # 思考被截断、计划的工具动作没做就写了答复: 每个回合只打回一次
+        # 答复停在半句 (上游没撞上限就报了 stop) 时续写一次: 只在写给用户的那个回合上开 (见 answer_cut_off)
+        self.continue_cut = bool(continue_cut)
+        self.cut_continued = False
         self.bump_once = 0
 
     # ── 回合 ──
@@ -875,6 +950,68 @@ class ReactLoop:
             cap = int(self.obs_cap(call.name) or 1800)
             log.append("tool/result", call_id=call.id, tool=call.name, content=f"{clip_observation(result.obs, cap)}{remain_note}")
 
+    async def _continue_cut(self, step: int, messages: list, route: dict, partial: str, box: dict) -> AsyncIterator[Any]:
+        """答复停在半句: 带着这一步的全部上下文续写一次 (关思考, 输出上限 CUT_CONTINUE_MAX_TOKENS 封顶), 续写的字记在同一步、
+        接在断点后面流出。拼好的答复放进 box["content"], 续写那次的结束原因放进 box["finish"]。
+        续写失败 / 只调了工具 / 一个字没写: 已经流出去的算数, 答复就是断点前那段加上已流出的部分。"""
+        ctx, log = self.ctx, self.log
+        tail = partial.rstrip()[-30:]
+        cap = int(route.get("max_tokens") or 0)
+        cont_route = {**route, "max_tokens": min(cap, CUT_CONTINUE_MAX_TOKENS) if cap > 0 else CUT_CONTINUE_MAX_TOKENS,
+                      "no_think": True}
+        msgs = list(messages) + [{"role": "assistant", "content": partial},
+                                 {"role": "user", "content": CUT_ANSWER_NUDGE.format(tail=tail)}]
+        logger.warning("[loop] task=%s 第 %d 步答复没撞上限却停在半句 (%d 字, 结尾「%s」), 续写一次",
+                       ctx.task_id, step, len(partial), tail[-20:])
+        meter, splice, said = _CallMeter(), _Splice(partial), _RepeatWatch()
+        pending: list[str] = []
+        shown: list[str] = []
+
+        def _piece(p: str):
+            said.feed(p)
+            t = splice.feed(p)
+            if t:
+                pending.append(t)
+
+        res: Optional[dict] = None
+        failure: Optional[BaseException] = None
+        beats = heartbeat(self.llm(msgs, {**cont_route, "on_thinking": meter.wrap(lambda _p: None, reasoning=True)},
+                                   meter.wrap(_piece)),
+                          tick=self.tick, ping_every=self.ping_every)
+        try:
+            async for kind, val in beats:
+                if kind == "done":
+                    res = val
+                if pending:
+                    txt = _drain(pending)
+                    shown.append(txt)
+                    yield {"event": "assistant_delta", "n": step, "text": txt}
+                if kind == "ping":
+                    yield PING
+                if res is None and said.cut is not None:
+                    await beats.aclose()          # 续写也复读了: 停掉, 已流出的算数
+                    res = {"content": said.text(), "finish_reason": "repetition"}
+                    break
+        except (GeneratorExit, asyncio.CancelledError):
+            raise
+        except Exception as e:      # noqa: BLE001 — 续写失败不拖垮这一步: 带着断点前那段收口
+            failure = e
+        if failure is None:
+            pending.append(splice.flush())
+        if "".join(pending):
+            txt = _drain(pending)
+            shown.append(txt)
+            yield {"event": "assistant_delta", "n": step, "text": txt}
+        meter.record(log, step=step, route=cont_route, res=res, failure=failure, attempt=1, phase="continue")
+        added = "".join(shown)
+        box["content"] = (partial + added).strip()
+        box["finish"] = str((res or {}).get("finish_reason") or "") if isinstance(res, dict) and failure is None else ""
+        if failure is not None:
+            logger.warning("[loop] task=%s 第 %d 步续写失败, 带着已有的 %d 字收口: %s", ctx.task_id, step,
+                           len(box["content"]), str(failure)[:200])
+        else:
+            logger.info("[loop] task=%s 第 %d 步续写 %d 字 (finish=%s)", ctx.task_id, step, len(added), box["finish"])
+
     async def _step(self, step: int, system: str) -> AsyncIterator[Any]:
         ctx, log = self.ctx, self.log
         # buildRequest: request 瀑布定本步路由 (换了就沿用), header 变了才记, 消息从日志推导
@@ -1015,6 +1152,19 @@ class ReactLoop:
                 log.append("user/message", content=MONOLOGUE_NUDGE, source="nudge")
                 yield StepEnd()
                 return
+            if (self.continue_cut and not self.cut_continued and str(res.get("finish_reason") or "") in ("stop", "")
+                    and len(content) >= CUT_CONTINUE_MIN_CHARS and answer_cut_off(content)):
+                # 没撞上限却停在半句: 续写一次, 接在断点后面 (见 answer_cut_off 上面那段)。
+                # 断点以流出去的字为准 (content 是剥过首尾空白的), 拼出来的答复与用户看到的一字不差
+                self.cut_continued = True
+                _streamed = said.text()
+                box: dict = {}
+                async for ev in self._continue_cut(step, messages, call_route,
+                                                   _streamed if _streamed.strip() == content else content, box):
+                    yield ev
+                content = box["content"]
+                if box.get("finish"):
+                    res = {**res, "finish_reason": box["finish"]}
             log.append("assistant/message", content=content)
             if str(res.get("finish_reason") or "") == "length":
                 self.max_tokens_hit = True
