@@ -658,6 +658,9 @@ class ToolCall:
     name: str
     args: dict
     thought: str = ""
+    # 同一条回复里、工具调用前写给用户的**全文** (thought 是它的前 300 字, 只给过程行用)。选择卡收尾拿它当这一轮的答复 ——
+    # (2026-10-17 线上: 拿 thought 当答复, 458 字的开场白落库成 300 字, 停在半句。)
+    text: str = ""
 
 
 @dataclass
@@ -1179,7 +1182,8 @@ class ReactLoop:
         for k, c in enumerate(calls[:MAX_CALLS_PER_STEP]):
             if isinstance(c, dict):
                 batch.append(ToolCall(id=str(c.get("id") or f"call_{step}_{k}"), name=str(c.get("name") or "").strip(),
-                                      args=c.get("args") if isinstance(c.get("args"), dict) else {}, thought=content[:300]))
+                                      args=c.get("args") if isinstance(c.get("args"), dict) else {}, thought=content[:300],
+                                      text=content))
         if not batch:
             log.append("assistant/message", content=content)
             yield StepEnd(kind="completed", answer=content)
