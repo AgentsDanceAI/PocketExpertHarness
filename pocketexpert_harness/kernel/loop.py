@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Iterable, Optional
 
 from pocketexpert_harness.kernel import hooks
+from pocketexpert_harness.kernel.repetition import ProseRepetitionGuard, repetition_cut
 
 logger = logging.getLogger("agentsdance.agent_loop")
 
@@ -340,40 +341,6 @@ class SessionLog:
         return True
 
 
-def repetition_cut(s: str, *, probe: int = 64, min_period: int = 40, min_span: int = 1200, min_reps: int = 5) -> Optional[str]:
-    """正文尾巴在复读就返回截掉复读后的正文 (留第一遍), 否则 None。
-    判据: 末尾一段 (probe 字) 往前隔一个周期 (≥ min_period 字) 又出现, 且最后两个周期一字不差; 再顺着往前找
-    它的每一次出现 (相邻两次隔 ≤ 3 个周期 —— 模型复读时会时不时插一句「我需要停止这个循环」), 串起来 ≥ min_reps 次、
-    跨度 ≥ min_span 字才算复读。截在第二遍开头。
-    门槛定得高是为了放过正常的重复: 空白表格模板几行一样的行、代码里几行一样的初始化, 都远到不了。"""
-    n = len(s)
-    if n < probe + min_span:
-        return None
-    tail = s[-probe:]
-    j = s.rfind(tail, 0, n - 1)
-    if j < 0:
-        return None
-    period = n - probe - j
-    if period < min_period or s[n - 2 * period:n - period] != s[n - period:]:
-        return None
-    hits = [n - probe, j]
-    while True:
-        k = s.rfind(tail, max(0, hits[-1] - 3 * period), hits[-1] + probe - 1)
-        if k < 0:
-            break
-        hits.append(k)
-    first, second = hits[-1], hits[-2]
-    if len(hits) < min_reps or n - first < min_span:
-        return None
-    back = 0                                        # 第一遍从哪开始: 两遍往前逐字对, 对不上的地方就是开头
-    while back < second - first and first - back > 0 and s[first - back - 1] == s[second - back - 1]:
-        back += 1
-    kept = s[:second - back].rstrip()
-    # 头几遍常有一两个字的出入 (「加了」/「添加了」), 对出来的开头会落在半句上 —— 退到上一个句末
-    end = max(kept.rfind(c, len(kept) - period) for c in "。！？!?\n")
-    return kept[:end + 1].rstrip() if end >= 0 else kept
-
-
 #: 一段话开头就是第一人称打算 / 在说用户 (第三人称) —— 思考独白的样子, 不是写给用户的话
 _PLAN_RE = re.compile(
     r"^(?:好的?[,，]\s*)?(?:现在|接下来|然后|首先|最后|另外|同时)?[,，]?\s*(?:"
@@ -574,26 +541,32 @@ class _CutPlanHold:
         return self.hold and self.n >= self.ABORT_CHARS
 
 
-class _RepeatWatch:
-    """流式复读熔断: 模型偶尔陷进同一段话一直重复 (2026-10-10 提示词专家实录: 一段 150 字的收尾在一次调用里
-    重复到输出上限, 正文 25 万字、这一步跑了 14 分钟)。每多 ~1000 字查一次尾巴, 判定复读就停掉这次调用。"""
-    EVERY = 1000
+class _RepetitionAbort(asyncio.CancelledError):
+    """Internal cancellation, distinct from a user's cancellation.
 
+    Callback ports may swallow Exception; cancellation must unwind the upstream
+    response context immediately, even when it emits a large synchronous delta.
+    """
+
+
+class _RepeatWatch:
+    """The answer buffer is separate from the detector's bounded recent state."""
     def __init__(self):
+        self.guard = ProseRepetitionGuard()
         self.parts: list[str] = []
-        self.n = self.checked = 0
+        self.n = 0
         self.cut: Optional[str] = None
 
     def feed(self, piece: str):
         if self.cut is not None or not piece:
             return
-        self.parts.append(piece)
-        self.n += len(piece)
-        if self.n - self.checked >= self.EVERY:
-            self.checked = self.n
-            text = "".join(self.parts)
-            self.parts = [text]
-            self.cut = repetition_cut(text)
+        before = self.guard.total_chars
+        self.guard.feed(piece)
+        self.parts.append(piece[:self.guard.total_chars - before])
+        self.n = self.guard.total_chars
+        if self.guard.cut_at is not None:
+            self.cut = self.text()[:self.guard.cut_at].rstrip()
+            raise _RepetitionAbort()
 
     def text(self) -> str:
         return "".join(self.parts)
@@ -639,7 +612,9 @@ class _CallMeter:
               "finish": str((res or {}).get("finish_reason") or "") if isinstance(res, dict) else "",
               "tool_calls": len((res or {}).get("tool_calls") or []) if isinstance(res, dict) else 0,
               "reasoning": "".join(self.reasoning)[:self.REASONING_CAP],
-              "ok": failure is None and isinstance(res, dict)}
+              "ok": failure is None and isinstance(res, dict) and res.get("finish_reason") != "repetition"}
+        if isinstance(res, dict) and res.get("finish_reason") == "repetition":
+            ev["error"] = "repetition"
         _cd = u.get("completion_tokens_details")
         if isinstance(_cd, dict) and _cd.get("reasoning_tokens") is not None:
             # 思考用了多少 token (上游报了才记): 顶在思考预算上 = 这一步的思考被截断了
@@ -734,6 +709,8 @@ async def heartbeat(awaitable, tick: float = 0.5, ping_every: float = 10.0):
     finally:
         if not task.done():
             task.cancel()
+            # Closing the driver also closes the HTTP response before returning.
+            await asyncio.gather(task, return_exceptions=True)
 
 
 def _as_message(m: dict) -> dict:
@@ -985,28 +962,34 @@ class ReactLoop:
             async for kind, val in beats:
                 if kind == "done":
                     res = val
+                    if not said.n and isinstance(res, dict) and res.get("content"):
+                        _piece(str(res["content"]))
                 if pending:
                     txt = _drain(pending)
                     shown.append(txt)
                     yield {"event": "assistant_delta", "n": step, "text": txt}
                 if kind == "ping":
                     yield PING
-                if res is None and said.cut is not None:
-                    await beats.aclose()          # 续写也复读了: 停掉, 已流出的算数
-                    res = {"content": said.text(), "finish_reason": "repetition"}
-                    break
+        except _RepetitionAbort:
+            await beats.aclose()
+            res = {"content": said.cut or "", "finish_reason": "repetition"}
+            pending.clear()
         except (GeneratorExit, asyncio.CancelledError):
             raise
         except Exception as e:      # noqa: BLE001 — 续写失败不拖垮这一步: 带着断点前那段收口
             failure = e
-        if failure is None:
+        if failure is None and said.cut is None:
             pending.append(splice.flush())
         if "".join(pending):
             txt = _drain(pending)
             shown.append(txt)
             yield {"event": "assistant_delta", "n": step, "text": txt}
         meter.record(log, step=step, route=cont_route, res=res, failure=failure, attempt=1, phase="continue")
-        added = "".join(shown)
+        if said.cut is not None:
+            kept = _Splice(partial)
+            added = kept.feed(said.cut) + kept.flush()
+        else:
+            added = "".join(shown)
         box["content"] = (partial + added).strip()
         box["finish"] = str((res or {}).get("finish_reason") or "") if isinstance(res, dict) and failure is None else ""
         if failure is not None:
@@ -1037,10 +1020,11 @@ class ReactLoop:
             res = None
             meter = _CallMeter()
             said, mused = _RepeatWatch(), _RepeatWatch()
+            shown_chars = 0
             # 思考断在半句又有没做的工具动作: 这一步的正文先扣着 (plan_hold.hold), 看它调不调工具
             plan_hold = _CutPlanHold(self._cut_plan_armed(step), lambda m=meter: "".join(m.reasoning))
-            beats = heartbeat(self.llm(messages, {**call_route, "on_thinking": meter.wrap(_tee(thinks.append, mused.feed), reasoning=True)},
-                                       meter.wrap(_tee(plan_hold.feed, deltas.append, said.feed))),
+            beats = heartbeat(self.llm(messages, {**call_route, "on_thinking": meter.wrap(_tee(mused.feed, thinks.append), reasoning=True)},
+                                       meter.wrap(_tee(plan_hold.feed, said.feed, deltas.append))),
                               tick=self.tick, ping_every=self.ping_every)
             try:
                 async for kind, val in beats:
@@ -1050,17 +1034,11 @@ class ReactLoop:
                         if thinks:
                             yield ThinkingDelta(text=_drain(thinks), n=step)
                         if deltas and not plan_hold.hold:
-                            yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
+                            text = _drain(deltas)
+                            shown_chars += len(text)
+                            yield {"event": "assistant_delta", "n": step, "text": text}
                     if kind == "ping":
                         yield PING
-                    if res is None and (said.cut is not None or mused.cut is not None):
-                        # 复读熔断: 停掉这次调用 (heartbeat 关闭时取消底下的请求), 正文截到第一遍, 当这一步写完了。
-                        # 思考在复读时正文多半还没开始 —— 拿到多少算多少, 空答由收口补答兜底。
-                        await beats.aclose()
-                        res = {"content": said.cut if said.cut is not None else said.text(), "finish_reason": "repetition"}
-                        logger.warning("[loop] task=%s 第 %d 步%s复读, 已停掉这次调用 (正文 %d 字 → %d 字)", ctx.task_id, step,
-                                       "正文" if said.cut is not None else "思考", said.n, len(res["content"]))
-                        break
                     if res is None and plan_hold.abort:
                         # 扣住的正文已经写了一大段还没调工具 = 在直接写答复: 停掉这次调用, 后面不必再生成 (下面打回)
                         await beats.aclose()
@@ -1068,6 +1046,13 @@ class ReactLoop:
                         logger.warning("[loop] task=%s 第 %d 步思考断在半句、没做计划里的工具动作就写答复 (%d 字), 已停掉这次调用",
                                        ctx.task_id, step, plan_hold.n)
                         break
+            except _RepetitionAbort:
+                await beats.aclose()
+                content = "" if plan_hold.hold else (said.cut if said.cut is not None else said.text())
+                res = {"content": content, "tool_calls": [], "finish_reason": "repetition"}
+                deltas[:] = [content[shown_chars:]] if not plan_hold.hold else []
+                logger.warning("[loop] task=%s 第 %d 步%s复读, 已停止上游 (保留正文 %d 字)",
+                               ctx.task_id, step, "正文" if said.cut is not None else "思考", len(content))
             except (GeneratorExit, asyncio.CancelledError):
                 raise
             except Exception as e:      # noqa: BLE001 — 失败交给 request-error 瀑布定重试
@@ -1076,6 +1061,11 @@ class ReactLoop:
                 yield ThinkingDelta(text=_drain(thinks), n=step)
             if deltas and not plan_hold.hold:
                 yield {"event": "assistant_delta", "n": step, "text": _drain(deltas)}
+            if failure is None and isinstance(res, dict) and res.get("finish_reason") != "repetition":
+                # Some ports return content without deltas, including tool-call commentary.
+                cut = repetition_cut(str(res.get("content") or ""))
+                if cut is not None:
+                    res = {**res, "content": cut, "tool_calls": [], "finish_reason": "repetition"}
             meter.record(log, step=step, route=route, res=res, failure=failure, attempt=attempt)
             if failure is None and isinstance(res, dict):
                 break
@@ -1090,6 +1080,12 @@ class ReactLoop:
             return
         content = str(res.get("content") or "").strip()
         calls = res.get("tool_calls") or []
+        if str(res.get("finish_reason") or "") == "repetition":
+            log.append("assistant/message", content=content, incomplete=True)
+            yield {"event": "notice", "kind": "repetition", "n": step,
+                   "reason": "检测到重复生成，已停止；以上内容尚未完整完成。"}
+            yield StepEnd(kind="error", reason="repetition", answer=content)
+            return
         if plan_hold.hold:
             if not calls and not res.get("malformed"):
                 # 思考写到一半被截断, 计划里的计算 / 查证一样没做就写了答复: 打回一次。扣住的正文不发给用户、不当答案;
@@ -1141,11 +1137,6 @@ class ReactLoop:
         self.last_raw = raw
         if not calls:
             # 没有工具调用 = 这一步完成, 回复就是答案
-            _cut = repetition_cut(content)
-            if _cut is not None:
-                # 整段一次到手 (非流式) 或复读只在最后一截: 同一道熔断, 截到第一遍; 撞上限是复读撞的, 不算截断
-                logger.warning("[loop] task=%s 第 %d 步正文尾巴在复读, 截掉 (%d 字 → %d 字)", ctx.task_id, step, len(content), len(_cut))
-                content, res = _cut, {**res, "finish_reason": "repetition"}
             if not self.monologue_bounced and (not ctx.max_steps or step < ctx.max_steps) and looks_like_monologue(content):
                 # 整篇「答复」是思考独白 (10-10 提示词专家: 「技能已加载。现在我来写…」「我需要设计…」「用户想要…」,
                 # 改好的提示词一直没写出来): 打回一次, 下一步写正式答复。这一段留在时间线里当过程。
@@ -1168,7 +1159,13 @@ class ReactLoop:
                 content = box["content"]
                 if box.get("finish"):
                     res = {**res, "finish_reason": box["finish"]}
-            log.append("assistant/message", content=content)
+            log.append("assistant/message", content=content,
+                       **({"incomplete": True} if res.get("finish_reason") == "repetition" else {}))
+            if str(res.get("finish_reason") or "") == "repetition":
+                yield {"event": "notice", "kind": "repetition", "n": step,
+                       "reason": "检测到重复生成，已停止；以上内容尚未完整完成。"}
+                yield StepEnd(kind="error", reason="repetition", answer=content)
+                return
             if str(res.get("finish_reason") or "") == "length":
                 self.max_tokens_hit = True
                 yield {"event": "notice", "kind": "max_tokens", "n": step, "reason": "回复被输出上限截断"}
