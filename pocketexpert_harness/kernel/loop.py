@@ -38,6 +38,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Iterable, Optional
 
 from pocketexpert_harness.kernel import hooks
 from pocketexpert_harness.kernel.repetition import ProseRepetitionGuard, repetition_cut
+from pocketexpert_harness.kernel import post_delivery as delivery
 
 logger = logging.getLogger("agentsdance.agent_loop")
 
@@ -653,6 +654,7 @@ class ToolResult:
     answer: str = ""                     # 收口时平台代写的答复 (只在 concluded 时生效): 工具判定本轮到此为止,
                                          # 且原因必须原话交给用户 —— 不再交给模型转述 (如余额不足之类的硬拦截)
     speaker: Optional[dict] = None       # 署名: 多智能体协作时这一步是谁做的 (前端按它显示头像)
+    delivered: Optional[dict] = None    # internal artifact fact; not observation/SSE data
 
 
 @dataclass
@@ -740,7 +742,7 @@ class ReactLoop:
                  speaker: Optional[dict] = None,
                  parallel: Iterable[str] = (),
                  summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None,
-                 continue_cut: bool = False):
+                 continue_cut: bool = False, enforce_delivery: bool = False):
         self.ctx, self.log, self.inbox = ctx, log, inbox
         self.summarizer = summarizer      # 摘要式压缩 (None = 机械截短)
         self.llm, self.tools, self.assemble = llm, tools, assemble
@@ -768,6 +770,12 @@ class ReactLoop:
         self.continue_cut = bool(continue_cut)
         self.cut_continued = False
         self.bump_once = 0
+        self.enforce_delivery = enforce_delivery
+        self.delivery_active = False
+        self.delivery_items: list[dict] = []
+        self.delivery_texts: list[dict] = []
+        self.delivery_sources = [str(ctx.extra.get("goal") or "")]
+        self.delivery_protocol_fails = 0
 
     # ── 回合 ──
     async def run(self) -> AsyncIterator[Any]:
@@ -803,6 +811,7 @@ class ReactLoop:
                 for m in incoming:
                     log.append("user/message", content=m["content"], source=m["kind"])
                     if m["kind"] == "steer":
+                        self.delivery_sources.append(m["raw"])
                         # 落一条 steer 步骤供前端行内显示 (n-0.5 行) 与回放
                         self.steps_log.append({"n": step, "thought": m["raw"], "tool": "steer", "args": {},
                                                "ok": True, "observation": "已并入下一步", "data": None, "steer": True})
@@ -831,6 +840,9 @@ class ReactLoop:
                     ctx.extra["steps_used"] = len(self.steps_log)
                     await hooks.run_turn_stopping(ctx, inbox, extra=self.turn_stopping_plugins)
                 if turn_ends is not None and not inbox.has_next_step():
+                    if self.delivery_active and turn_ends.reason == "delivery_complete":
+                        yield {"event": "assistant_delta", "n": step, "text": turn_ends.answer}
+                        log.append("assistant/message", content=turn_ends.answer)
                     break
                 target = NEXT_STEP
         except (GeneratorExit, asyncio.CancelledError):
@@ -933,6 +945,7 @@ class ReactLoop:
                 if not t.done():
                     t.cancel()
         for call, result in zip(group, results):
+            self._register_delivery(result)
             cap = int(self.obs_cap(call.name) or 1800)
             log.append("tool/result", call_id=call.id, tool=call.name, content=self._result_text(call, result, cap, remain_note))
 
@@ -1011,8 +1024,25 @@ class ReactLoop:
         else:
             logger.info("[loop] task=%s 第 %d 步续写 %d 字 (finish=%s)", ctx.task_id, step, len(added), box["finish"])
 
+    def _delivery_failure(self, reason: str) -> StepEnd:
+        self.delivery_protocol_fails += 1
+        self.log.trace.append({"kind": "delivery/protocol_error", "at": time.time(), "reason": reason})
+        if self.delivery_protocol_fails >= 2:
+            return StepEnd(kind="error", reason="delivery_protocol")
+        self.log.append("user/message", source="nudge", content=delivery.PROTOCOL_NUDGE)
+        return StepEnd()
+
+    def _register_delivery(self, result: ToolResult) -> None:
+        item = result.delivered
+        if self.enforce_delivery and result.ok and isinstance(item, dict) and item.get("kind") in ("slides", "report", "webapp"):
+            self.delivery_active = True
+            self.delivery_items.append(dict(item))
+
     async def _step(self, step: int, system: str) -> AsyncIterator[Any]:
         ctx, log = self.ctx, self.log
+        controlled = self.delivery_active
+        if controlled:
+            system += "\n\n" + delivery.CONTROL_NOTE
         # buildRequest: request 瀑布定本步路由 (换了就沿用), header 变了才记, 消息从日志推导
         route = await hooks.run_request(ctx, dict(self.route))
         self.route = dict(route)
@@ -1020,9 +1050,9 @@ class ReactLoop:
                         "system_chars": len(system), "tools": len(self.tool_names)})
         log.log_system(system)
         messages = log.derive_messages(system)
-        call_route = route
+        call_route = ({**route, "delivery_control": True, "tool_choice": "required"} if controlled else route)
         if self.bump_once:
-            call_route, self.bump_once = {**route, "max_tokens": self.bump_once}, 0
+            call_route, self.bump_once = {**call_route, "max_tokens": self.bump_once}, 0
         attempt = 0
         res: Optional[dict] = None
         while True:
@@ -1044,11 +1074,18 @@ class ReactLoop:
             said, mused = _RepeatWatch(), _RepeatWatch()
             shown_chars = 0
             # 思考断在半句又有没做的工具动作: 这一步的正文先扣着 (plan_hold.hold), 看它调不调工具
-            plan_hold = _CutPlanHold(self._cut_plan_armed(step), lambda m=meter: "".join(m.reasoning))
+            plan_hold = _CutPlanHold(not controlled and self._cut_plan_armed(step), lambda m=meter: "".join(m.reasoning))
+            def _content_delta(text: str) -> None:
+                if controlled:
+                    if str(text).strip():
+                        raise delivery.ProseAfterDelivery()
+                    return
+                _tee(plan_hold.feed, said.feed, deltas.append)(text)
+
             beats = heartbeat(self.llm(messages, {**call_route,
                                        "on_thinking": meter.wrap(_tee(mused.feed, thinks.append), reasoning=True),
                                        "on_tool_delta": _tool_delta},
-                                       meter.wrap(_tee(plan_hold.feed, said.feed, deltas.append))),
+                                       meter.wrap(_content_delta)),
                               tick=self.tick, ping_every=self.ping_every)
             try:
                 async for kind, val in beats:
@@ -1072,6 +1109,11 @@ class ReactLoop:
                         logger.warning("[loop] task=%s 第 %d 步思考断在半句、没做计划里的工具动作就写答复 (%d 字), 已停掉这次调用",
                                        ctx.task_id, step, plan_hold.n)
                         break
+            except delivery.ProseAfterDelivery:
+                await beats.aclose()
+                meter.record(log, step=step, route=route, res=None, failure=delivery.ProseAfterDelivery(), attempt=attempt)
+                yield self._delivery_failure("ordinary_content_delta")
+                return
             except _RepetitionAbort:
                 await beats.aclose()
                 content = "" if plan_hold.hold else (said.cut if said.cut is not None else said.text())
@@ -1106,6 +1148,9 @@ class ReactLoop:
             return
         content = str(res.get("content") or "").strip()
         calls = res.get("tool_calls") or []
+        if controlled and (content or res.get("malformed") or not calls):
+            yield self._delivery_failure("ordinary_content_or_missing_action")
+            return
         if str(res.get("finish_reason") or "") == "repetition":
             log.append("assistant/message", content=content, incomplete=True)
             yield {"event": "notice", "kind": "repetition", "n": step,
@@ -1214,6 +1259,40 @@ class ReactLoop:
         log.append("assistant/message", content=batch[0].thought,
                    tool_call={"id": batch[0].id, "name": batch[0].name, "args": batch[0].args},
                    tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in batch])
+        if controlled and any(c.name == "finish" for c in batch):
+            if len(batch) != 1:
+                for c in batch:
+                    log.append("tool/result", call_id=c.id, tool=c.name, content="未执行：finish必须单独调用，请逐项继续尚未完成工作。")
+                yield self._delivery_failure("finish_mixed_batch")
+                return
+            call = batch[0]
+            try:
+                action, body, quote = delivery.finish_args(call.args, self.delivery_sources, self.delivery_items)
+            except ValueError as exc:
+                log.append("tool/result", call_id=call.id, tool=call.name, content=str(exc))
+                yield self._delivery_failure(str(exc))
+                return
+            log.append("tool/result", call_id=call.id, tool=call.name, content="已接受收尾动作：" + action)
+            if action == "text":
+                item = {"request_quote": quote, "text": body}
+                if item in self.delivery_texts:
+                    yield self._delivery_failure("independent_text_already_delivered")
+                    return
+                self.delivery_protocol_fails = 0
+                self.delivery_texts.append(item)
+                # Full text already lives in this native tool call and the independent
+                # delivery ledger; do not double it in the next model request.
+                yield {"event": "assistant_delta", "n": step, "text": body}
+                # Keep the tool loop open: other explicit outputs and guarded actions may remain.
+                yield StepEnd()
+            elif action == "blocked":
+                log.append("assistant/message", content=body)
+                yield {"event": "assistant_delta", "n": step, "text": body}
+                yield StepEnd(kind="blocked", reason="delivery_blocked", answer=body)
+            else:
+                yield StepEnd(kind="completed", reason="delivery_complete",
+                              answer=delivery.receipt(self.delivery_items, str(ctx.extra.get("reply_lang") or "zh")))
+            return
         remain_note = f"\n\n(剩余可用步数 {max(0, ctx.max_steps - step)})" if ctx.max_steps else ""
         ran_to = 0      # 并行的一组已经跑到哪 (组里后面几个不再单独跑)
         for k, call in enumerate(batch):
@@ -1252,6 +1331,7 @@ class ReactLoop:
                     yield ev
             if result is None:
                 result = ToolResult(ok=False, obs=f"工具 {call.name} 没有返回结果")
+            self._register_delivery(result)
             cap = int(self.obs_cap(call.name) or 1800)
             log.append("tool/result", call_id=call.id, tool=call.name, content=self._result_text(call, result, cap, remain_note))
             if not concluding:
@@ -1265,6 +1345,7 @@ class ReactLoop:
                 # 收口工具结束回合; 同批后面的不再执行, 但各留一条结果 — 原生协议里每个 tool_call 都得有配对的 tool 消息
                 for rest in batch[k + 1:]:
                     log.append("tool/result", call_id=rest.id, tool=rest.name, content=f"未执行: 回合已由 {call.name} 收口。")
-                yield StepEnd(kind="completed", answer=result.answer, reason="concluded")
+                yield StepEnd(kind="blocked" if self.delivery_active and not result.ok else "completed",
+                              answer=result.answer, reason="concluded")
                 return
         yield StepEnd()
