@@ -1189,6 +1189,10 @@ class ReactLoop:
                    tool_call={"id": batch[0].id, "name": batch[0].name, "args": batch[0].args},
                    tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in batch])
         remain_note = f"\n\n(剩余可用步数 {max(0, ctx.max_steps - step)})" if ctx.max_steps else ""
+        # 主答循环的写作提醒 (engine 放在 extra 里; 成员循环没有这一项)
+        _tail = str(((getattr(ctx, "extra", None) or {}).get("tool_tail_note")) or "")
+        if _tail:
+            remain_note += ("\n" if remain_note else "\n\n") + _tail
         ran_to = 0      # 并行的一组已经跑到哪 (组里后面几个不再单独跑)
         for k, call in enumerate(batch):
             if k < ran_to:
