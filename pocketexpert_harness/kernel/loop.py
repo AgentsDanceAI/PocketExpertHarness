@@ -60,6 +60,12 @@ MAX_DUP_RAWS = 2             # 连续一模一样的输出: 先提醒, 再犯强
 CONCLUDING_TOOLS = frozenset({"finish", "final", "done"})
 OBSERVATION_SSE_CHARS = 600
 MAX_CALLS_PER_STEP = 10      # 一步里最多执行的工具调用数 (默认 10; 这里按串行档逐个跑)
+_ARTIFACT_TOOLS = frozenset({"render_slides", "build_webapp", "write_report"})
+_PREPARING = {"render_slides": "正在整理幻灯片大纲", "build_webapp": "正在整理网页需求", "write_report": "正在整理报告内容"}
+_ARTIFACT_DELIVERED_NOTE = (
+    "(本次工具已实际交付成品，用户已经能看到并打开它。后续普通回复只需一两句交代成品和实际限制，"
+    "不要重抄逐页内容、报告全文或网页代码，也不要再执行同一个交付来充当确认。"
+    "若用户还明确要求其他独立正文或成品，继续完成那些尚未交付的内容；不要以一句确认代替它们。)")
 
 # 观察超上限时的截断。原先是 obs[:cap] 硬切: 搜索结果的观察可能正好停在「(http://…/202411/174」这种半截链接上,
 # 模型下一步原样去打开 → 404, 404 还会被当成读过的来源; 截掉了多少也一字不提, 模型当成看全了。
@@ -928,7 +934,14 @@ class ReactLoop:
                     t.cancel()
         for call, result in zip(group, results):
             cap = int(self.obs_cap(call.name) or 1800)
-            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{clip_observation(result.obs, cap)}{remain_note}")
+            log.append("tool/result", call_id=call.id, tool=call.name, content=self._result_text(call, result, cap, remain_note))
+
+    def _result_text(self, call: ToolCall, result: ToolResult, cap: int, remain_note: str) -> str:
+        # Generic “deliver all content” guidance must not override an actual, successful
+        # artifact delivery. Keep the loop available for other requested work.
+        tail = (_ARTIFACT_DELIVERED_NOTE if result.ok and call.name in _ARTIFACT_TOOLS else
+                str((self.ctx.extra or {}).get("tool_tail_note") or ""))
+        return clip_observation(result.obs, cap) + remain_note + ("\n\n" + tail if tail else "")
 
     async def _continue_cut(self, step: int, messages: list, route: dict, partial: str, box: dict) -> AsyncIterator[Any]:
         """答复停在半句: 带着这一步的全部上下文续写一次 (关思考, 输出上限 CUT_CONTINUE_MAX_TOKENS 封顶), 续写的字记在同一步、
@@ -1016,6 +1029,15 @@ class ReactLoop:
             attempt += 1
             deltas: list[str] = []
             thinks: list[str] = []
+            preparations: list[dict] = []
+            prepared: set[int] = set()
+
+            def _tool_delta(part: dict) -> None:
+                idx, name = part.get("index", 0), str(part.get("name") or "")
+                if name in self.tool_names and name in _PREPARING and idx not in prepared:
+                    prepared.add(idx)
+                    preparations.append({"event": "notice", "kind": "tool_preparing", "n": step,
+                                         "tool": name, "reason": _PREPARING[name]})
             failure: Optional[BaseException] = None
             res = None
             meter = _CallMeter()
@@ -1023,7 +1045,9 @@ class ReactLoop:
             shown_chars = 0
             # 思考断在半句又有没做的工具动作: 这一步的正文先扣着 (plan_hold.hold), 看它调不调工具
             plan_hold = _CutPlanHold(self._cut_plan_armed(step), lambda m=meter: "".join(m.reasoning))
-            beats = heartbeat(self.llm(messages, {**call_route, "on_thinking": meter.wrap(_tee(mused.feed, thinks.append), reasoning=True)},
+            beats = heartbeat(self.llm(messages, {**call_route,
+                                       "on_thinking": meter.wrap(_tee(mused.feed, thinks.append), reasoning=True),
+                                       "on_tool_delta": _tool_delta},
                                        meter.wrap(_tee(plan_hold.feed, said.feed, deltas.append))),
                               tick=self.tick, ping_every=self.ping_every)
             try:
@@ -1039,6 +1063,8 @@ class ReactLoop:
                             yield {"event": "assistant_delta", "n": step, "text": text}
                     if kind == "ping":
                         yield PING
+                    while preparations:
+                        yield preparations.pop(0)
                     if res is None and plan_hold.abort:
                         # 扣住的正文已经写了一大段还没调工具 = 在直接写答复: 停掉这次调用, 后面不必再生成 (下面打回)
                         await beats.aclose()
@@ -1189,10 +1215,6 @@ class ReactLoop:
                    tool_call={"id": batch[0].id, "name": batch[0].name, "args": batch[0].args},
                    tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in batch])
         remain_note = f"\n\n(剩余可用步数 {max(0, ctx.max_steps - step)})" if ctx.max_steps else ""
-        # 主答循环的写作提醒 (engine 放在 extra 里; 成员循环没有这一项)
-        _tail = str(((getattr(ctx, "extra", None) or {}).get("tool_tail_note")) or "")
-        if _tail:
-            remain_note += ("\n" if remain_note else "\n\n") + _tail
         ran_to = 0      # 并行的一组已经跑到哪 (组里后面几个不再单独跑)
         for k, call in enumerate(batch):
             if k < ran_to:
@@ -1231,7 +1253,7 @@ class ReactLoop:
             if result is None:
                 result = ToolResult(ok=False, obs=f"工具 {call.name} 没有返回结果")
             cap = int(self.obs_cap(call.name) or 1800)
-            log.append("tool/result", call_id=call.id, tool=call.name, content=f"{clip_observation(result.obs, cap)}{remain_note}")
+            log.append("tool/result", call_id=call.id, tool=call.name, content=self._result_text(call, result, cap, remain_note))
             if not concluding:
                 self.steps_log.append({"n": n, "thought": call.thought, "tool": call.name, "args": call.args,
                                        "ok": result.ok, "observation": clip_observation(result.obs, cap), "data": result.data,
