@@ -62,8 +62,8 @@ MAX_DUP_RAWS = 2             # 连续一模一样的输出: 先提醒, 再犯强
 CONCLUDING_TOOLS = frozenset({"finish", "final", "done"})
 OBSERVATION_SSE_CHARS = 600
 MAX_CALLS_PER_STEP = 10      # 一步里最多执行的工具调用数 (默认 10; 这里按串行档逐个跑)
-_ARTIFACT_TOOLS = frozenset({"render_slides", "build_webapp", "write_report"})
-_PREPARING = {"render_slides": "正在整理幻灯片大纲", "build_webapp": "正在整理网页需求", "write_report": "正在整理报告内容"}
+_ARTIFACT_TOOLS = frozenset({"render_slides", "build_webapp", "write_report", "deliver_artifact"})
+_PREPARING = {"render_slides": "正在整理幻灯片大纲", "build_webapp": "正在整理网页需求", "write_report": "正在整理报告内容", "deliver_artifact": "正在交付成品"}
 _ARTIFACT_DELIVERED_NOTE = (
     "(本次工具已实际交付成品，用户已经能看到并打开它。后续普通回复只需一两句交代成品和实际限制，"
     "不要重抄逐页内容、报告全文或网页代码，也不要再执行同一个交付来充当确认。"
@@ -859,7 +859,8 @@ class ReactLoop:
                     await hooks.run_turn_stopping(ctx, inbox, extra=self.turn_stopping_plugins)
                 if turn_ends is not None and not inbox.has_next_step():
                     if self.delivery_active and turn_ends.reason == "delivery_complete":
-                        yield {"event": "assistant_delta", "n": step, "text": turn_ends.answer}
+                        yield {"event": "assistant_delta", "n": step, "text": turn_ends.answer,
+                               "content_role": "artifact_receipt"}
                         log.append("assistant/message", content=turn_ends.answer)
                     break
                 target = NEXT_STEP
@@ -1056,9 +1057,10 @@ class ReactLoop:
 
     def _register_delivery(self, result: ToolResult) -> None:
         item = result.delivered
-        if self.enforce_delivery and result.ok and isinstance(item, dict) and item.get("kind") in ("slides", "report", "webapp"):
+        if self.enforce_delivery and result.ok and isinstance(item, dict) and item.get("kind") in delivery.KINDS:
             self.delivery_active = True
-            self.delivery_items.append(dict(item))
+            if not any(delivery.same_artifact(item, previous) for previous in self.delivery_items):
+                self.delivery_items.append(dict(item))
 
     async def _step(self, step: int, system: str) -> AsyncIterator[Any]:
         ctx, log = self.ctx, self.log
@@ -1321,13 +1323,13 @@ class ReactLoop:
                            content=f"这项独立正文已完整发送给用户（{len(body)}字）。用户没有提出新的修改要求，不要自行重写或补发；其他要求都完成后调用finish(action=complete)。")
                 # Full text already lives in this native tool call and the independent
                 # delivery ledger; do not double it in the next model request.
-                yield {"event": "assistant_delta", "n": step, "text": body}
+                yield {"event": "assistant_delta", "n": step, "text": body, "content_role": "requested_text"}
                 # Keep the tool loop open: other explicit outputs and guarded actions may remain.
                 yield StepEnd()
             elif action == "blocked":
                 log.append("tool/result", call_id=call.id, tool=call.name, content="已接受受阻说明")
                 log.append("assistant/message", content=body)
-                yield {"event": "assistant_delta", "n": step, "text": body}
+                yield {"event": "assistant_delta", "n": step, "text": body, "content_role": "delivery_warning"}
                 yield StepEnd(kind="blocked", reason="delivery_blocked", answer=body)
             else:
                 log.append("tool/result", call_id=call.id, tool=call.name, content="已接受完成动作，检查收件箱和剩余守卫后给出回执")
