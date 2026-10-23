@@ -15,7 +15,7 @@ import unicodedata
 FINISH_SCHEMA = {"type": "function", "function": {
     "name": "finish",
     "description": ("成品已展示后的收尾。complete：用户要求均已完成，由平台生成真实成品回执；"
-                    "text：交付用户明确另要的独立聊天正文，request_quote逐字引用该用户要求，text给完整正文；"
+                    "text：交付用户明确另要的独立聊天正文，request_quote逐字引用这一项独立要求，text给完整正文；同项要求只交一次，不自行删脚注或润色后重发；"
                     "blocked：还有工作无法完成，text简述真实受阻情况。不能用text复抄已交成品。"
                     "有其他工作时先调用现有工具；finish必须单独调用，不与其他工具同批。"),
     "parameters": {"type": "object", "properties": {

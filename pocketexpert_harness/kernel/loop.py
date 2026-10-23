@@ -776,6 +776,8 @@ class ReactLoop:
         self.delivery_texts: list[dict] = []
         self.delivery_sources = [str(ctx.extra.get("goal") or "")]
         self.delivery_protocol_fails = 0
+        self.delivery_request_revision = 0
+        self.delivered_text_requests: list[tuple[int, str]] = []
 
     # ── 回合 ──
     async def run(self) -> AsyncIterator[Any]:
@@ -811,6 +813,7 @@ class ReactLoop:
                 for m in incoming:
                     log.append("user/message", content=m["content"], source=m["kind"])
                     if m["kind"] == "steer":
+                        self.delivery_request_revision += 1
                         self.delivery_sources.append(m["raw"])
                         # 落一条 steer 步骤供前端行内显示 (n-0.5 行) 与回放
                         self.steps_log.append({"n": step, "thought": m["raw"], "tool": "steer", "args": {},
@@ -1272,24 +1275,32 @@ class ReactLoop:
                 log.append("tool/result", call_id=call.id, tool=call.name, content=str(exc))
                 yield self._delivery_failure(str(exc))
                 return
-            log.append("tool/result", call_id=call.id, tool=call.name, content="已接受收尾动作：" + action)
             if action == "text":
-                item = {"request_quote": quote, "text": body}
-                if item in self.delivery_texts:
-                    yield self._delivery_failure("independent_text_already_delivered")
+                key = quote.strip()
+                already_delivered = any(revision == self.delivery_request_revision and key == prior
+                                        for revision, prior in self.delivered_text_requests)
+                if already_delivered:
+                    log.append("tool/result", call_id=call.id, tool=call.name,
+                               content="这项用户要求的正文已经完整发送，不再改写重发。若没有其他未完成的工作，请调用finish(action=complete)。")
+                    yield self._delivery_failure("independent_text_request_already_delivered")
                     return
                 self.delivery_protocol_fails = 0
-                self.delivery_texts.append(item)
+                self.delivered_text_requests.append((self.delivery_request_revision, key))
+                self.delivery_texts.append({"request_quote": quote, "text": body})
+                log.append("tool/result", call_id=call.id, tool=call.name,
+                           content=f"这项独立正文已完整发送给用户（{len(body)}字）。用户没有提出新的修改要求，不要自行重写或补发；其他要求都完成后调用finish(action=complete)。")
                 # Full text already lives in this native tool call and the independent
                 # delivery ledger; do not double it in the next model request.
                 yield {"event": "assistant_delta", "n": step, "text": body}
                 # Keep the tool loop open: other explicit outputs and guarded actions may remain.
                 yield StepEnd()
             elif action == "blocked":
+                log.append("tool/result", call_id=call.id, tool=call.name, content="已接受受阻说明")
                 log.append("assistant/message", content=body)
                 yield {"event": "assistant_delta", "n": step, "text": body}
                 yield StepEnd(kind="blocked", reason="delivery_blocked", answer=body)
             else:
+                log.append("tool/result", call_id=call.id, tool=call.name, content="已接受完成动作，检查收件箱和剩余守卫后给出回执")
                 yield StepEnd(kind="completed", reason="delivery_complete",
                               answer=delivery.receipt(self.delivery_items, str(ctx.extra.get("reply_lang") or "zh")))
             return
