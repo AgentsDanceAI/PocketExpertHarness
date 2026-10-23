@@ -1,9 +1,9 @@
 {
-  "source_commit": "f9c8d334a82c9816adebb93e34ac68ff561c5c79",
+  "source_commit": "fd72d4f6fe19984a05586f4370fb6afbe918bb5f",
   "files": {
     "pocketexpert_harness/kernel/loop.py": {
       "source": "backend/agent/loop.py",
-      "sha256": "e8fa806509d37f3cdf1e142021129bcddeae493eef03dab21db24737ee5a8bc7"
+      "sha256": "24649493168afe73c41da286c727a8b8cc9e416a066bbcf4ea485c9ee03e7b70"
     },
     "pocketexpert_harness/kernel/post_delivery.py": {
       "source": "backend/agent/post_delivery.py",

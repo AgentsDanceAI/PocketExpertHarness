@@ -33,6 +33,7 @@ import logging
 import os
 import re
 import time
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Iterable, Optional
 
@@ -696,17 +697,28 @@ def _drain(buf: list) -> str:
     return text
 
 
-async def heartbeat(awaitable, tick: float = 0.5, ping_every: float = 10.0):
+async def heartbeat(awaitable, tick: float = 0.5, ping_every: float = 10.0, *, wake: Optional[asyncio.Event] = None):
     """把耗时 await 变成节拍序列: 每 tick 秒 ("tick", 已等秒数) — 调用方借它冲刷流式增量;
     每 ping_every 秒一帧 ("ping", …) 喂 SSE 保活; 最后 ("done", 结果)。异常从 result() 原样抛。
+    wake 可让首个流式增量提前冲刷一次, 不推进定时节拍; 后续仍按 tick 批量发送。
     消费方中途关闭 (客户端断流) 时取消底下的任务, 别让模型调用在后台白跑。"""
     task = asyncio.ensure_future(awaitable)
+    wake_waiter = asyncio.create_task(wake.wait()) if wake is not None else None
     waited = since_ping = 0.0
+    timeout = tick
     try:
         while True:
-            done, _ = await asyncio.wait({task}, timeout=tick)
-            if done:
+            watched = {task, wake_waiter} if wake_waiter is not None else {task}
+            started = asyncio.get_running_loop().time()
+            done, _ = await asyncio.wait(watched, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+            if task in done:
                 break
+            if wake_waiter is not None and wake_waiter in done:
+                wake_waiter = None  # one early flush per call; later fragments remain batched
+                timeout = max(0.0, timeout - (asyncio.get_running_loop().time() - started))
+                yield ("tick", waited)
+                continue
+            timeout = tick
             waited += tick
             since_ping += tick
             yield ("tick", waited)
@@ -715,10 +727,12 @@ async def heartbeat(awaitable, tick: float = 0.5, ping_every: float = 10.0):
                 yield ("ping", waited)
         yield ("done", task.result())
     finally:
-        if not task.done():
-            task.cancel()
-            # Closing the driver also closes the HTTP response before returning.
-            await asyncio.gather(task, return_exceptions=True)
+        owned = [task] + ([wake_waiter] if wake_waiter is not None else [])
+        for pending in owned:
+            if not pending.done():
+                pending.cancel()
+        # Closing the driver closes the HTTP response and any first-output waiter.
+        await asyncio.gather(*owned, return_exceptions=True)
 
 
 def _as_message(m: dict) -> dict:
@@ -823,11 +837,12 @@ class ReactLoop:
                 yield PING
                 step_end: Optional[StepEnd] = None
                 try:
-                    async for ev in self._step(step, system):
-                        if isinstance(ev, StepEnd):
-                            step_end = ev
-                        else:
-                            yield ev
+                    async with aclosing(self._step(step, system)) as step_events:
+                        async for ev in step_events:
+                            if isinstance(ev, StepEnd):
+                                step_end = ev
+                            else:
+                                yield ev
                 finally:
                     log.append("step/end", step=step)
                 if step_end is None:
@@ -973,6 +988,7 @@ class ReactLoop:
         logger.warning("[loop] task=%s 第 %d 步答复没撞上限却停在半句 (%d 字, 结尾「%s」), 续写一次",
                        ctx.task_id, step, len(partial), tail[-20:])
         meter, splice, said = _CallMeter(), _Splice(partial), _RepeatWatch()
+        first_output = asyncio.Event()
         pending: list[str] = []
         shown: list[str] = []
 
@@ -981,12 +997,13 @@ class ReactLoop:
             t = splice.feed(p)
             if t:
                 pending.append(t)
+                first_output.set()
 
         res: Optional[dict] = None
         failure: Optional[BaseException] = None
         beats = heartbeat(self.llm(msgs, {**cont_route, "on_thinking": meter.wrap(lambda _p: None, reasoning=True)},
                                    meter.wrap(_piece)),
-                          tick=self.tick, ping_every=self.ping_every)
+                          tick=self.tick, ping_every=self.ping_every, wake=first_output)
         try:
             async for kind, val in beats:
                 if kind == "done":
@@ -1007,6 +1024,8 @@ class ReactLoop:
             raise
         except Exception as e:      # noqa: BLE001 — 续写失败不拖垮这一步: 带着断点前那段收口
             failure = e
+        finally:
+            await beats.aclose()
         if failure is None and said.cut is None:
             pending.append(splice.flush())
         if "".join(pending):
@@ -1064,6 +1083,11 @@ class ReactLoop:
             thinks: list[str] = []
             preparations: list[dict] = []
             prepared: set[int] = set()
+            first_output = asyncio.Event()
+
+            def _wake_output(text: str) -> None:
+                if text:
+                    first_output.set()
 
             def _tool_delta(part: dict) -> None:
                 idx, name = part.get("index", 0), str(part.get("name") or "")
@@ -1071,6 +1095,7 @@ class ReactLoop:
                     prepared.add(idx)
                     preparations.append({"event": "notice", "kind": "tool_preparing", "n": step,
                                          "tool": name, "reason": _PREPARING[name]})
+                    first_output.set()
             failure: Optional[BaseException] = None
             res = None
             meter = _CallMeter()
@@ -1084,12 +1109,14 @@ class ReactLoop:
                         raise delivery.ProseAfterDelivery()
                     return
                 _tee(plan_hold.feed, said.feed, deltas.append)(text)
+                if not plan_hold.hold:
+                    _wake_output(text)
 
             beats = heartbeat(self.llm(messages, {**call_route,
-                                       "on_thinking": meter.wrap(_tee(mused.feed, thinks.append), reasoning=True),
+                                       "on_thinking": meter.wrap(_tee(mused.feed, thinks.append, _wake_output), reasoning=True),
                                        "on_tool_delta": _tool_delta},
                                        meter.wrap(_content_delta)),
-                              tick=self.tick, ping_every=self.ping_every)
+                              tick=self.tick, ping_every=self.ping_every, wake=first_output)
             try:
                 async for kind, val in beats:
                     if kind == "done":
@@ -1128,6 +1155,8 @@ class ReactLoop:
                 raise
             except Exception as e:      # noqa: BLE001 — 失败交给 request-error 瀑布定重试
                 failure = e
+            finally:
+                await beats.aclose()
             if thinks:
                 yield ThinkingDelta(text=_drain(thinks), n=step)
             if deltas and not plan_hold.hold:
@@ -1227,9 +1256,10 @@ class ReactLoop:
                 self.cut_continued = True
                 _streamed = said.text()
                 box: dict = {}
-                async for ev in self._continue_cut(step, messages, call_route,
-                                                   _streamed if _streamed.strip() == content else content, box):
-                    yield ev
+                async with aclosing(self._continue_cut(step, messages, call_route,
+                                                       _streamed if _streamed.strip() == content else content, box)) as continued:
+                    async for ev in continued:
+                        yield ev
                 content = box["content"]
                 if box.get("finish"):
                     res = {**res, "finish_reason": box["finish"]}
