@@ -130,8 +130,9 @@ def finish_args(args: dict, sources: list[str], items: list[dict] | None = None)
     if not isinstance(text, str) or not isinstance(quote, str):
         raise ValueError("finish正文和引用必须是文字")
     if action == "complete":
-        if text or quote:
-            raise ValueError("complete不接受自由正文，由平台生成回执")
+        # 顺手带的一句总结不发 (回执由平台生成), 但也不打回 —— 10-31 线上「产品讲解」视频已交,
+        # 模型 complete 里多写了一句被打回, 重试那次又没调出工具, 两次协议错整轮判失败
+        return action, "", ""
     elif action == "text":
         if not text.strip() or not quote.strip() or not any(quote in source for source in sources):
             raise ValueError("独立正文必须引用真实用户要求，且正文不能为空")
