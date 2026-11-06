@@ -628,7 +628,8 @@ class _CallMeter:
             # 思考用了多少 token (上游报了才记): 顶在思考预算上 = 这一步的思考被截断了
             ev["reasoning_tokens"] = int(_cd.get("reasoning_tokens") or 0)
         if failure is not None:
-            ev["error"] = str(failure)[:300]
+            # 有些异常 str() 是空串 (httpx 的 ReadTimeout 等): 记类型名, 否则这条记录看不出是哪种失败 (2026-11-06)
+            ev["error"] = (str(failure) or type(failure).__name__)[:300]
         log.trace.append(ev)
         return ev
 
@@ -1171,10 +1172,14 @@ class ReactLoop:
             meter.record(log, step=step, route=route, res=res, failure=failure, attempt=attempt)
             if failure is None and isinstance(res, dict):
                 break
-            fail = {"message": str(failure)[:300] if failure else "模型没有返回", "type": type(failure).__name__ if failure else "Empty",
+            fail = {"message": (str(failure) or type(failure).__name__)[:300] if failure else "模型没有返回",
+                    "type": type(failure).__name__ if failure else "Empty",
                     "attempt": attempt, "model": str(route.get("model") or "")}
             action = await hooks.run_request_error(ctx, fail)
             if action == "retry":
+                # 重试也写一行 warning (2026-11-06): 原先只推 notice 给前端, 首字卡住后重试这种事事后无从查起
+                logger.warning("[loop] task=%s 第 %d 步模型调用失败 (%s, %.0fs), 重试第 %d 次: %s", ctx.task_id, step,
+                               fail["model"], time.time() - meter.t0, attempt, fail["message"][:160])
                 yield {"event": "notice", "kind": "request_retry", "n": step, "reason": f"模型调用失败, 重试第 {attempt} 次: {fail['message'][:120]}"}
                 continue
             logger.warning("[loop] task=%s 模型调用失败, 带着已有观察收口: %s", ctx.task_id, fail["message"])
