@@ -974,7 +974,10 @@ class ReactLoop:
         # artifact delivery. Keep the loop available for other requested work.
         tail = (_ARTIFACT_DELIVERED_NOTE if result.ok and call.name in _ARTIFACT_TOOLS else
                 str((self.ctx.extra or {}).get("tool_tail_note") or ""))
-        return clip_observation(result.obs, cap) + remain_note + ("\n\n" + tail if tail else "")
+        # 用户不写中文的那一轮: 读完一大段中文工具结果后再提醒一次用他的语言写 (成品交付那句后面也跟; 中文对话是空串)
+        lang = str((self.ctx.extra or {}).get("tool_lang_note") or "")
+        return (clip_observation(result.obs, cap) + remain_note + ("\n\n" + tail if tail else "")
+                + ("\n\n" + lang if lang else ""))
 
     async def _continue_cut(self, step: int, messages: list, route: dict, partial: str, box: dict) -> AsyncIterator[Any]:
         """答复停在半句: 带着这一步的全部上下文续写一次 (关思考, 输出上限 CUT_CONTINUE_MAX_TOKENS 封顶), 续写的字记在同一步、
